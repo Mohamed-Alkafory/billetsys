@@ -529,11 +529,15 @@ public class UserResource {
             @FormParam("social") String social, @FormParam("phoneNumber") String phoneNumber,
             @FormParam("phoneExtension") String phoneExtension, @FormParam("timezoneId") Long timezoneId,
             @FormParam("countryId") Long countryId, @FormParam("type") String type,
-            @FormParam("password") String password, @FormParam("companyId") Long companyId) {
-        requireAdmin(auth);
+            @FormParam("password") String password, @FormParam("companyId") Long companyId,
+            @FormParam("active") Boolean active) {
+        User currentUser = requireAdmin(auth);
         User editUser = User.findById(id);
         if (editUser == null) {
             throw new NotFoundException();
+        }
+        if (active != null && currentUser.id != null && currentUser.id.equals(editUser.id)) {
+            throw new BadRequestException("Cannot change your own active status");
         }
         validateUserFields(name, email, type, false, password, editUser.name);
         if (editUser.name == null || editUser.name.isBlank()) {
@@ -552,6 +556,10 @@ public class UserResource {
         if (password != null && !password.isBlank()) {
             editUser.passwordHash = BcryptUtil.bcryptHash(password);
         }
+        boolean activeChanged = active != null && active != editUser.active;
+        if (active != null) {
+            editUser.active = active;
+        }
         List<Company> currentCompanies = Company.find("select c from Company c join c.users u where u = ?1", editUser)
                 .list();
         for (Company c : currentCompanies) {
@@ -562,6 +570,16 @@ public class UserResource {
             if (company != null) {
                 company.users.add(editUser);
             }
+        }
+        if (activeChanged) {
+            Company company = companyId != null ? Company.findById(companyId)
+                    : Company.<Company> find("select c from Company c join c.users u where u = ?1", editUser)
+                            .firstResult();
+            eventService.record(editUser.id,
+                    active ? ai.mnemosyne_systems.model.event.EventConstants.USER_ACTIVATED
+                            : ai.mnemosyne_systems.model.event.EventConstants.USER_DEACTIVATED,
+                    company == null ? null : company.id, currentUser.id,
+                    active ? "User activated" : "User deactivated");
         }
         return ReactRedirectSupport.redirect(client, "/users");
     }

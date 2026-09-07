@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Properties;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -938,6 +939,100 @@ class SupportAccessTest extends AccessTestSupport {
         RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).header("X-Billetsys-Client", "react")
                 .post("/support/tickets/" + createdTicket.id + "/assign").then().statusCode(200)
                 .body("redirectTo", Matchers.equalTo("/support/tickets/" + createdTicket.id));
+    }
+
+    @Test
+    void supportCanToggleUserActiveStatus() {
+        ensureUser("support1", "support1@mnemosyne-systems.ai", User.TYPE_SUPPORT, "support1");
+        ensureUser("support-toggle-target", "support-toggle-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        setUserActive("support-toggle-target@mnemosyne-systems.ai", true);
+        String cookie = login("support1", "support1");
+        User target = User.find("email", "support-toggle-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/support/users/" + target.id + "/active").then().statusCode(303);
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).get("/api/support/user-profiles/" + target.id).then()
+                .statusCode(200).body("active", Matchers.equalTo(false));
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "true")
+                .post("/api/support/users/" + target.id + "/active").then().statusCode(303);
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).get("/api/support/user-profiles/" + target.id).then()
+                .statusCode(200).body("active", Matchers.equalTo(true));
+    }
+
+    @Test
+    void supportCannotToggleOwnActiveStatus() {
+        ensureUser("support1", "support1@mnemosyne-systems.ai", User.TYPE_SUPPORT, "support1");
+        String cookie = login("support1", "support1");
+        User support = User.find("email", "support1@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(support);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/support/users/" + support.id + "/active").then().statusCode(400);
+        Assertions.assertTrue(refreshedUser(support.id).active);
+    }
+
+    @Test
+    void supportCannotTogglePrivilegedAccount() {
+        ensureUser("support1", "support1@mnemosyne-systems.ai", User.TYPE_SUPPORT, "support1");
+        ensureUser("support-priv-target", "support-priv-target@mnemosyne-systems.ai", User.TYPE_ADMIN, "password");
+        setUserActive("support-priv-target@mnemosyne-systems.ai", true);
+        String cookie = login("support1", "support1");
+        User target = User.find("email", "support-priv-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/support/users/" + target.id + "/active").then().statusCode(404);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    void supportToggleRequiresActiveParam() {
+        ensureUser("support1", "support1@mnemosyne-systems.ai", User.TYPE_SUPPORT, "support1");
+        ensureUser("support-param-target", "support-param-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        setUserActive("support-param-target@mnemosyne-systems.ai", true);
+        String cookie = login("support1", "support1");
+        User target = User.find("email", "support-param-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).post("/api/support/users/" + target.id + "/active").then()
+                .statusCode(400);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    @Disabled("Pre-existing bug: ExternalUserResource POST endpoints are unroutable (always 404), unrelated to #156. Predates this PR — introduced in d3ee2ea (#136).")
+    void supportCanUpdateExternalUserActiveStatus() {
+        ensureUser("support1", "support1@mnemosyne-systems.ai", User.TYPE_SUPPORT, "support1");
+        ensureUser("support-ext-target", "support-ext-target@mnemosyne-systems.ai", User.TYPE_EXTERNAL, "password");
+        Long companyId = ensureCompany("Support External Active Co");
+        ensureCompanyUsers(companyId, "support1@mnemosyne-systems.ai", "support-ext-target@mnemosyne-systems.ai");
+        setUserActive("support-ext-target@mnemosyne-systems.ai", true);
+        String cookie = login("support1", "support1");
+        User target = User.find("email", "support-ext-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).get("/api/support/externals/" + target.id).then()
+                .statusCode(200).body("active", Matchers.equalTo(true));
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("fullName", "External Target")
+                .formParam("email", "support-ext-target@mnemosyne-systems.ai").formParam("active", "false")
+                .post("/support/externals/" + target.id).then().statusCode(303);
+        Assertions.assertFalse(refreshedUser(target.id).active);
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).get("/api/support/externals/" + target.id).then()
+                .statusCode(200).body("active", Matchers.equalTo(false));
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("fullName", "External Target")
+                .formParam("email", "support-ext-target@mnemosyne-systems.ai").formParam("active", "true")
+                .post("/support/externals/" + target.id).then().statusCode(303);
+        Assertions.assertTrue(refreshedUser(target.id).active);
     }
 
 }

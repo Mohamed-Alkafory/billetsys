@@ -234,4 +234,96 @@ class SuperuserAccessTest extends AccessTestSupport {
                 .statusCode(200).body("redirectTo", Matchers.equalTo("/superuser/tickets/" + createdTicketId));
     }
 
+    @Test
+    void superuserCanToggleCompanyUserActiveStatus() {
+        ensureUser("superuser1", "superuser1@mnemosyne-systems.ai", User.TYPE_SUPERUSER, "superuser1");
+        ensureUser("su-toggle-target", "su-toggle-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        Long companyId = ensureCompany("Superuser Toggle Co");
+        ensureCompanyUsers(companyId, "superuser1@mnemosyne-systems.ai", "su-toggle-target@mnemosyne-systems.ai");
+        setUserActive("su-toggle-target@mnemosyne-systems.ai", true);
+        String cookie = login("superuser1", "superuser1");
+        User target = User.find("email", "su-toggle-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/superuser/users/" + target.id + "/active").then().statusCode(303);
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).get("/api/superuser/user-profiles/" + target.id)
+                .then().statusCode(200).body("active", Matchers.equalTo(false));
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "true")
+                .post("/api/superuser/users/" + target.id + "/active").then().statusCode(303);
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).get("/api/superuser/user-profiles/" + target.id)
+                .then().statusCode(200).body("active", Matchers.equalTo(true));
+    }
+
+    @Test
+    void superuserCannotToggleOwnActiveStatus() {
+        ensureUser("superuser1", "superuser1@mnemosyne-systems.ai", User.TYPE_SUPERUSER, "superuser1");
+        Long companyId = ensureCompany("Superuser Toggle Co");
+        ensureCompanyUsers(companyId, "superuser1@mnemosyne-systems.ai");
+        String cookie = login("superuser1", "superuser1");
+        User superuser = User.find("email", "superuser1@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(superuser);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/superuser/users/" + superuser.id + "/active").then().statusCode(400);
+        Assertions.assertTrue(refreshedUser(superuser.id).active);
+    }
+
+    @Test
+    void superuserCannotTogglePrivilegedAccount() {
+        ensureUser("superuser1", "superuser1@mnemosyne-systems.ai", User.TYPE_SUPERUSER, "superuser1");
+        ensureUser("su-priv-peer", "su-priv-peer@mnemosyne-systems.ai", User.TYPE_SUPERUSER, "superuser-priv");
+        Long companyId = ensureCompany("Superuser Toggle Co");
+        ensureCompanyUsers(companyId, "superuser1@mnemosyne-systems.ai", "su-priv-peer@mnemosyne-systems.ai");
+        setUserActive("su-priv-peer@mnemosyne-systems.ai", true);
+        String cookie = login("superuser1", "superuser1");
+        User target = User.find("email", "su-priv-peer@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/superuser/users/" + target.id + "/active").then().statusCode(404);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    void superuserCannotToggleUserOutsideOwnCompany() {
+        ensureUser("superuser1", "superuser1@mnemosyne-systems.ai", User.TYPE_SUPERUSER, "superuser1");
+        ensureUser("su-outsider", "su-outsider@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        Long companyId = ensureCompany("Superuser Toggle Co");
+        ensureCompanyUsers(companyId, "superuser1@mnemosyne-systems.ai");
+        Long otherCompanyId = ensureCompany("Superuser Other Co");
+        ensureCompanyUsers(otherCompanyId, "su-outsider@mnemosyne-systems.ai");
+        setUserActive("su-outsider@mnemosyne-systems.ai", true);
+        String cookie = login("superuser1", "superuser1");
+        User target = User.find("email", "su-outsider@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/superuser/users/" + target.id + "/active").then().statusCode(404);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    void superuserToggleRequiresActiveParam() {
+        ensureUser("superuser1", "superuser1@mnemosyne-systems.ai", User.TYPE_SUPERUSER, "superuser1");
+        ensureUser("su-param-target", "su-param-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        Long companyId = ensureCompany("Superuser Toggle Co");
+        ensureCompanyUsers(companyId, "superuser1@mnemosyne-systems.ai", "su-param-target@mnemosyne-systems.ai");
+        setUserActive("su-param-target@mnemosyne-systems.ai", true);
+        String cookie = login("superuser1", "superuser1");
+        User target = User.find("email", "su-param-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).post("/api/superuser/users/" + target.id + "/active").then()
+                .statusCode(400);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
 }

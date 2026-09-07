@@ -40,7 +40,7 @@ public final class AuthHelper {
         }
         activeSession.lastActivityAt = now;
         User user = User.findById(sessionCookie.userId());
-        if (user == null) {
+        if (user == null || !user.active) {
             ACTIVE_TOKENS.remove(sessionCookie.userId(), activeSession);
             return null;
         }

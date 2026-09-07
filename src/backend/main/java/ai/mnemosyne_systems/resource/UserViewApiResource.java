@@ -112,7 +112,7 @@ public class UserViewApiResource {
                 UserDirectoryApiModels.typeLabel(user.type), user.country == null ? null : user.country.name,
                 user.timezone == null ? null : user.timezone.name, user.logoBase64, company == null ? null : company.id,
                 company == null ? null : company.name, company == null ? null : "/user/companies/" + company.id, null,
-                null, "/user/tickets");
+                null, "/user/tickets", user.active);
     }
 
     private List<UserDirectoryApiModels.UserReference> usersForCompany(Company company, String type, String basePath) {

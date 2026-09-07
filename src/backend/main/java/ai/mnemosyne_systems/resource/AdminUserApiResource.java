@@ -12,20 +12,32 @@ import ai.mnemosyne_systems.model.Company;
 import ai.mnemosyne_systems.model.Country;
 import ai.mnemosyne_systems.model.Timezone;
 import ai.mnemosyne_systems.model.User;
+import ai.mnemosyne_systems.model.event.EventConstants;
+import ai.mnemosyne_systems.service.EventService;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.CookieParam;
+import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import java.util.List;
 
 @Path("/api/admin/users")
 @Produces(MediaType.APPLICATION_JSON)
 public class AdminUserApiResource {
+
+    @Inject
+    EventService eventService;
 
     @GET
     @Transactional
@@ -117,7 +129,34 @@ public class AdminUserApiResource {
                 UserDirectoryApiModels.typeLabel(user.type), user.country == null ? null : user.country.name,
                 user.timezone == null ? null : user.timezone.name, user.logoBase64, company == null ? null : company.id,
                 company == null ? null : company.name, company == null ? null : "/companies/" + company.id,
-                "/users/" + user.id + "/edit", "/user/" + user.id + "/delete", backPath);
+                "/users/" + user.id + "/edit", "/user/" + user.id + "/delete", backPath, user.active);
+    }
+
+    @POST
+    @Path("/{id}/active")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response setActive(@CookieParam("authUserIdV3") String auth, @PathParam("id") Long id,
+            @HeaderParam("X-Billetsys-Client") String client, @FormParam("active") Boolean active) {
+        User currentUser = OwnerResource.requireAdmin(auth);
+        if (active == null) {
+            throw new BadRequestException("Active is required");
+        }
+        User user = User.findById(id);
+        if (user == null) {
+            throw new NotFoundException();
+        }
+        if (currentUser.id != null && currentUser.id.equals(user.id)) {
+            throw new BadRequestException("Cannot change your own active status");
+        }
+        user.active = active;
+        user.persist();
+        Company company = Company.<Company> find("select c from Company c join c.users u where u = ?1", user)
+                .firstResult();
+        eventService.record(user.id, active ? EventConstants.USER_ACTIVATED : EventConstants.USER_DEACTIVATED,
+                company == null ? null : company.id, currentUser.id, active ? "User activated" : "User deactivated");
+        String backPath = company != null ? "/users?companyId=" + company.id : "/users";
+        return ReactRedirectSupport.redirect(client, backPath);
     }
 
     private Company selectCompany(List<Company> companies, Long companyId) {

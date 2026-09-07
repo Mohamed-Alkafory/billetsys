@@ -6,6 +6,7 @@
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
 
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DataState from "../components/common/DataState";
 import PageHeader from "../components/layout/PageHeader";
@@ -40,18 +41,86 @@ interface DirectoryUserDetailPageProps extends SessionPageProps {
   backFallback: string;
 }
 
+function resolveActiveUrl(
+  apiBase: string,
+  id: string,
+  role?: string,
+): string | null {
+  if (apiBase.startsWith("/api/admin/users")) {
+    return `/api/admin/users/${id}/active`;
+  }
+  if (apiBase.startsWith("/api/support")) {
+    return `/api/support/users/${id}/active`;
+  }
+  if (apiBase.startsWith("/api/tam")) {
+    return `/api/tam/users/${id}/active`;
+  }
+  if (apiBase.startsWith("/api/superuser")) {
+    return `/api/superuser/users/${id}/active`;
+  }
+  // TAM's user list (TamUserApiResource list) links to the shared
+  // /user/user-profiles/:id route, not a TAM-specific detail route.
+  // Map it to the TAM toggle endpoint, but only for TAM viewers —
+  // regular "user" role viewers of the same apiBase must not get a toggle.
+  if (apiBase.startsWith("/api/user/user-profiles") && role === "tam") {
+    return `/api/tam/users/${id}/active`;
+  }
+  return null;
+}
+
 export default function DirectoryUserDetailPage({
   apiBase,
   backFallback,
+  sessionState,
 }: DirectoryUserDetailPageProps) {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [reloadKey, setReloadKey] = useState(0);
 
   const detailState = useJson<DirectoryUserDetail>(
-    id ? `${apiBase}/${id}` : null,
+    id ? `${apiBase}/${id}${reloadKey ? `?t=${reloadKey}` : ""}` : null,
   );
   const detail = detailState.data;
   const submissionGuard = useSubmissionGuard();
+
+  const activeUrl = id
+    ? resolveActiveUrl(apiBase, id, sessionState.data?.role)
+    : null;
+  const isAdminView = apiBase.startsWith("/api/admin/users");
+  const sessionUsername = sessionState.data?.username;
+  const isSelf =
+    Boolean(sessionUsername) &&
+    Boolean(detail?.username) &&
+    sessionUsername!.toLowerCase() === detail!.username!.toLowerCase();
+  const isToggleableType =
+    isAdminView ||
+    (detail?.type != null &&
+      ["user", "external"].includes(detail.type.toLowerCase()));
+  const showActiveToggle =
+    activeUrl !== null &&
+    detail?.active !== undefined &&
+    !isSelf &&
+    isToggleableType;
+
+  const toggleActive = async () => {
+    if (!activeUrl || detail?.active === undefined) {
+      return;
+    }
+    if (!submissionGuard.tryEnter()) {
+      return;
+    }
+    try {
+      await postForm(activeUrl, [["active", !detail.active]]);
+      toast.success(detail.active ? "User deactivated." : "User activated.");
+      setReloadKey((key) => key + 1);
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to update status.",
+      );
+    } finally {
+      submissionGuard.exit();
+    }
+  };
 
   const deleteUser = async () => {
     if (!detail?.deletePath || !submissionGuard.tryEnter()) {
@@ -144,6 +213,16 @@ export default function DirectoryUserDetailPage({
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                )}
+                {showActiveToggle && (
+                  <Button
+                    type="button"
+                    variant={detail.active ? "outline" : "default"}
+                    className={detail.deletePath ? undefined : "ml-auto"}
+                    onClick={toggleActive}
+                  >
+                    {detail.active ? "Deactivate" : "Activate"}
+                  </Button>
                 )}
                 {detail.editPath && (
                   <Button asChild>

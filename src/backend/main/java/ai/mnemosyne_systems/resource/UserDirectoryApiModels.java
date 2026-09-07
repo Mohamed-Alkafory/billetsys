@@ -34,7 +34,7 @@ public final class UserDirectoryApiModels {
     }
 
     public record UserReference(Long id, String username, String displayName, String email, String type,
-            String typeLabel, String detailPath, String editPath) {
+            String typeLabel, String detailPath, String editPath, boolean active) {
     }
 
     public record DirectoryListResponse(String title, String description, Long selectedCompanyId,
@@ -43,7 +43,7 @@ public final class UserDirectoryApiModels {
     }
 
     public record UserFormData(Long id, String name, String fullName, String email, String social, String phoneNumber,
-            String phoneExtension, Long countryId, Long timezoneId, String type, Long companyId) {
+            String phoneExtension, Long countryId, Long timezoneId, String type, Long companyId, Boolean active) {
     }
 
     public record UserFormResponse(String title, String submitPath, String cancelPath, Long selectedCompanyId,
@@ -54,7 +54,7 @@ public final class UserDirectoryApiModels {
     public record UserDetailResponse(Long id, String username, String displayName, String fullName, String email,
             String social, String phoneNumber, String phoneExtension, String type, String typeLabel, String countryName,
             String timezoneName, String logoBase64, Long companyId, String companyName, String companyPath,
-            String editPath, String deletePath, String backPath) {
+            String editPath, String deletePath, String backPath, boolean active) {
     }
 
     public record CompanyDetailResponse(Long id, String name, String address1, String address2, String city,
@@ -88,7 +88,8 @@ public final class UserDirectoryApiModels {
     public static UserReference userReference(User user, String detailPath, String editPath) {
         return new UserReference(user == null ? null : user.id, user == null ? null : user.name,
                 user == null ? null : user.getDisplayName(), user == null ? null : user.email,
-                user == null ? null : user.type, typeLabel(user == null ? null : user.type), detailPath, editPath);
+                user == null ? null : user.type, typeLabel(user == null ? null : user.type), detailPath, editPath,
+                user != null && user.active);
     }
 
     public static UserFormData userFormData(User user, Long companyId) {
@@ -98,7 +99,7 @@ public final class UserDirectoryApiModels {
                 user == null ? null : user.phoneExtension,
                 user == null || user.country == null ? null : user.country.id,
                 user == null || user.timezone == null ? null : user.timezone.id, user == null ? null : user.type,
-                companyId);
+                companyId, user == null ? null : user.active);
     }
 
     public static String typeLabel(String type) {

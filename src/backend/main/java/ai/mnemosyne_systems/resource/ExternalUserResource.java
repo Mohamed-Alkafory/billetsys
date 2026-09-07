@@ -95,11 +95,15 @@ public class ExternalUserResource {
             @PathParam("id") Long id, @FormParam("name") String name, @FormParam("fullName") String fullName,
             @FormParam("email") String email, @FormParam("social") String social,
             @FormParam("phoneNumber") String phoneNumber, @FormParam("phoneExtension") String phoneExtension,
-            @FormParam("countryId") Long countryId, @FormParam("timezoneId") Long timezoneId) {
+            @FormParam("countryId") Long countryId, @FormParam("timezoneId") Long timezoneId,
+            @FormParam("active") Boolean active) {
         User currentUser = requireRole(auth, role);
         User user = User.findById(id);
         if (user == null || !User.TYPE_EXTERNAL.equals(user.type)) {
             throw new NotFoundException();
+        }
+        if (active != null && currentUser.id != null && currentUser.id.equals(user.id)) {
+            throw new BadRequestException("Cannot change your own active status");
         }
 
         Company userCompany = Company.<Company> find("select c from Company c join c.users u where u = ?1", user)
@@ -132,7 +136,19 @@ public class ExternalUserResource {
             user.timezone = Timezone.findById(timezoneId);
         }
 
+        boolean activeChanged = active != null && active != user.active;
+        if (active != null) {
+            user.active = active;
+        }
+
         user.persist();
+        if (activeChanged) {
+            eventService.record(user.id,
+                    active ? ai.mnemosyne_systems.model.event.EventConstants.USER_ACTIVATED
+                            : ai.mnemosyne_systems.model.event.EventConstants.USER_DEACTIVATED,
+                    userCompany == null ? null : userCompany.id, currentUser.id,
+                    active ? "User activated" : "User deactivated");
+        }
         return Response.seeOther(URI.create("/" + role + "/externals")).build();
     }
 

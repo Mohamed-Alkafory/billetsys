@@ -30,6 +30,7 @@ export interface UserReference extends NamedEntity {
   phoneExtension?: string;
   type?: string;
   typeLabel?: string;
+  active?: boolean;
   companyId?: Id;
   countryId?: Id;
   timezoneId?: Id;
@@ -113,6 +114,7 @@ export interface DirectoryUserBootstrap {
     timezoneId?: Id;
     type?: string;
     companyId?: Id;
+    active?: boolean;
   };
   countries?: CountryOption[];
   timezones?: TimezoneOption[];

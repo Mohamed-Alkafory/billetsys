@@ -254,7 +254,7 @@ public class SuperuserTicketApiResource {
     private SupportTicketApiResource.UserReference toUserReference(User user) {
         return new SupportTicketApiResource.UserReference(user.id, user.name, user.getDisplayName(), user.fullName,
                 user.email, user.type, user.country == null ? null : user.country.name,
-                user.timezone == null ? null : user.timezone.name, user.logoBase64, userPath(user));
+                user.timezone == null ? null : user.timezone.name, user.logoBase64, userPath(user), user.active);
     }
 
     private SupportTicketApiResource.MessageEntry toMessageEntry(Message message,

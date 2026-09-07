@@ -26,6 +26,7 @@ export interface DirectoryUserFormState {
   companyId: string;
   password: string;
   verifyPassword: string;
+  active: boolean;
 }
 
 export function appendFormValue(
@@ -108,5 +109,6 @@ export function createDirectoryUserFormState(
         : "",
     password: "",
     verifyPassword: "",
+    active: bootstrap?.user?.active !== false,
   };
 }

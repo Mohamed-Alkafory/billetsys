@@ -76,6 +76,13 @@ abstract class AccessTestSupport {
     }
 
     @Transactional
+    void setUserActive(String email, boolean active) {
+        User user = User.find("email", email).firstResult();
+        Assertions.assertNotNull(user);
+        user.active = active;
+    }
+
+    @Transactional
     void setUserEmailFormat(String email, String emailFormat) {
         User user = User.find("email", email).firstResult();
         Assertions.assertNotNull(user);

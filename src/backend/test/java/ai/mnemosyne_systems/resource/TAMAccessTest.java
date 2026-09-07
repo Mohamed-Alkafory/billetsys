@@ -183,4 +183,93 @@ class TAMAccessTest extends AccessTestSupport {
                 .then().statusCode(303);
     }
 
+    @Test
+    void tamCanToggleAssignedUserActiveStatus() {
+        ensureUser("tam1", "tam1@mnemosyne-systems.ai", User.TYPE_TAM, "tam1");
+        ensureUser("tam-toggle-target", "tam-toggle-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        Long companyId = ensureCompany("TAM Toggle Co");
+        ensureCompanyUsers(companyId, "tam1@mnemosyne-systems.ai", "tam-toggle-target@mnemosyne-systems.ai");
+        setUserActive("tam-toggle-target@mnemosyne-systems.ai", true);
+        String cookie = login("tam1", "tam1");
+        User target = User.find("email", "tam-toggle-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/tam/users/" + target.id + "/active").then().statusCode(303);
+        Assertions.assertFalse(refreshedUser(target.id).active);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "true")
+                .post("/api/tam/users/" + target.id + "/active").then().statusCode(303);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    void tamCannotToggleOwnActiveStatus() {
+        ensureUser("tam1", "tam1@mnemosyne-systems.ai", User.TYPE_TAM, "tam1");
+        Long companyId = ensureCompany("TAM Toggle Co");
+        ensureCompanyUsers(companyId, "tam1@mnemosyne-systems.ai");
+        String cookie = login("tam1", "tam1");
+        User tam = User.find("email", "tam1@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(tam);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/tam/users/" + tam.id + "/active").then().statusCode(400);
+        Assertions.assertTrue(refreshedUser(tam.id).active);
+    }
+
+    @Test
+    void tamCannotTogglePrivilegedAccount() {
+        ensureUser("tam1", "tam1@mnemosyne-systems.ai", User.TYPE_TAM, "tam1");
+        ensureUser("tam-priv-peer", "tam-priv-peer@mnemosyne-systems.ai", User.TYPE_TAM, "password");
+        Long companyId = ensureCompany("TAM Toggle Co");
+        ensureCompanyUsers(companyId, "tam1@mnemosyne-systems.ai", "tam-priv-peer@mnemosyne-systems.ai");
+        setUserActive("tam-priv-peer@mnemosyne-systems.ai", true);
+        String cookie = login("tam1", "tam1");
+        User target = User.find("email", "tam-priv-peer@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/tam/users/" + target.id + "/active").then().statusCode(404);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    void tamCannotToggleUserOutsideAssignedCompany() {
+        ensureUser("tam1", "tam1@mnemosyne-systems.ai", User.TYPE_TAM, "tam1");
+        ensureUser("tam-outsider", "tam-outsider@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        Long companyId = ensureCompany("TAM Toggle Co");
+        ensureCompanyUsers(companyId, "tam1@mnemosyne-systems.ai");
+        Long otherCompanyId = ensureCompany("TAM Other Co");
+        ensureCompanyUsers(otherCompanyId, "tam-outsider@mnemosyne-systems.ai");
+        setUserActive("tam-outsider@mnemosyne-systems.ai", true);
+        String cookie = login("tam1", "tam1");
+        User target = User.find("email", "tam-outsider@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/tam/users/" + target.id + "/active").then().statusCode(404);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    void tamToggleRequiresActiveParam() {
+        ensureUser("tam1", "tam1@mnemosyne-systems.ai", User.TYPE_TAM, "tam1");
+        ensureUser("tam-param-target", "tam-param-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        Long companyId = ensureCompany("TAM Toggle Co");
+        ensureCompanyUsers(companyId, "tam1@mnemosyne-systems.ai", "tam-param-target@mnemosyne-systems.ai");
+        setUserActive("tam-param-target@mnemosyne-systems.ai", true);
+        String cookie = login("tam1", "tam1");
+        User target = User.find("email", "tam-param-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).post("/api/tam/users/" + target.id + "/active").then().statusCode(400);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
 }

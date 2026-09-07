@@ -206,6 +206,48 @@ class UserAccessTest extends AccessTestSupport {
     }
 
     @Test
+    void inactiveUserCannotLogin() {
+        ensureUser("inactive-login-user", "inactive-login-user@mnemosyne-systems.ai", User.TYPE_USER, "secret");
+        ensureUser("login-compare-user", "login-compare-user@mnemosyne-systems.ai", User.TYPE_USER, "secret");
+        setUserActive("inactive-login-user@mnemosyne-systems.ai", false);
+
+        String inactiveLocation = RestAssured.given().redirects().follow(false).contentType(ContentType.URLENC)
+                .formParam("username", "inactive-login-user").formParam("password", "secret").post("/login").then()
+                .statusCode(303).extract().header("Location");
+        String wrongPasswordLocation = RestAssured.given().redirects().follow(false).contentType(ContentType.URLENC)
+                .formParam("username", "login-compare-user").formParam("password", "wrong").post("/login").then()
+                .statusCode(303).extract().header("Location");
+        Assertions.assertEquals(wrongPasswordLocation, inactiveLocation);
+        Assertions.assertTrue(inactiveLocation.contains("Invalid"));
+
+        setUserActive("inactive-login-user@mnemosyne-systems.ai", true);
+    }
+
+    @Test
+    void deactivatedSessionIsInvalidated() {
+        ensureUser("admin", "admin@mnemosyne-systems.ai", User.TYPE_ADMIN, "admin");
+        ensureUser("session-victim", "session-victim@mnemosyne-systems.ai", User.TYPE_SUPPORT, "secret");
+        setUserActive("session-victim@mnemosyne-systems.ai", true);
+        String adminCookie = login("admin", "admin");
+        String victimCookie = login("session-victim", "secret");
+        User victim = User.find("email", "session-victim@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(victim);
+
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, victimCookie).get("/api/articles").then().statusCode(200);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, adminCookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/admin/users/" + victim.id + "/active").then().statusCode(303);
+
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, victimCookie).get("/api/articles").then().statusCode(401);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, adminCookie)
+                .contentType(ContentType.URLENC).formParam("active", "true")
+                .post("/api/admin/users/" + victim.id + "/active").then().statusCode(303);
+        Assertions.assertTrue(refreshedUser(victim.id).active);
+    }
+
+    @Test
     void reactLoginRedirectsUsersToUserTickets() {
         ensureUser("user", "user@mnemosyne-systems.ai", User.TYPE_USER, "user");
 

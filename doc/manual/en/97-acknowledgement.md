@@ -11,6 +11,7 @@ Jesper Pedersen <jesper.pedersen@mnemosyne-systems.ai>
 Ahmed Mordi <ahmed.m.hamada2003@gmail.com>
 Hamza Azeem <hamzaalsherif9@gmail.com>
 Shashank Singh <shashanksgh3@gmail.com>
+Mohamed Hamed <alkmohamed40@gmail.com>
 ```
 
 ## Committers

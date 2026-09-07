@@ -16,6 +16,8 @@ import MarkdownContent from "../components/markdown/MarkdownContent";
 import LexicalEditor from "../components/editor/LexicalEditor";
 import MessageVisibilityField from "../components/tickets/MessageVisibilityField";
 import {
+  InactiveIcon,
+  isInactive,
   UserHoverLink,
   UserReferenceInlineList,
 } from "../components/users/UserComponents";
@@ -326,7 +328,16 @@ function ActivityTimeline({ events }: { events: EventEntry[] }) {
               </div>
               <div className="text-sm rounded-md border border-border/40 bg-card/50 p-3 shadow-sm inline-block">
                 <span className="font-semibold text-foreground">
-                  {authorLabel}
+                  <span
+                    className={
+                      event.user && isInactive(event.user)
+                        ? "line-through decoration-2 text-muted-foreground"
+                        : undefined
+                    }
+                  >
+                    {authorLabel}
+                  </span>
+                  {event.user && isInactive(event.user) && <InactiveIcon />}
                 </span>{" "}
                 <span className="text-muted-foreground">triggered action:</span>{" "}
                 <span className="font-medium text-foreground lowercase">

@@ -41,6 +41,9 @@ public class AuthResource {
             return seeOther(errorRedirect("Username and password are required")).build();
         }
         User user = User.find("name", username.trim()).firstResult();
+        if (user != null && !user.active) {
+            return seeOther(errorRedirect("Invalid credentials")).build();
+        }
         if (user == null || user.passwordHash == null || !BcryptUtil.matches(password, user.passwordHash)) {
             return seeOther(errorRedirect("Invalid credentials")).build();
         }

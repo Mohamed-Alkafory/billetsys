@@ -81,6 +81,9 @@ public class User extends PanacheEntityBase {
     @Column(name = "page_size")
     public Integer pageSize;
 
+    @Column(name = "active", nullable = false, columnDefinition = "boolean default true")
+    public boolean active = true;
+
     public static boolean usernameExists(String username) {
         if (username == null || username.isBlank()) {
             return false;

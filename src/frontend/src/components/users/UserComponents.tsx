@@ -35,6 +35,19 @@ interface SelectableUsersProps {
   selectionMode?: "multiple" | "single";
 }
 
+export function isInactive(user: UserReference): boolean {
+  return user.active === false;
+}
+
+export function InactiveIcon() {
+  return (
+    <i
+      className="ti ti-badge-off ml-1 text-muted-foreground"
+      title="Inactive user"
+    />
+  );
+}
+
 export function UserRoleBadge({
   type,
   className = "",
@@ -84,6 +97,16 @@ export function UserHoverLink({
   const [tooltipState, setTooltipState] = useState<TooltipState | null>(null);
 
   if (!user?.detailPath) {
+    if (user && isInactive(user)) {
+      return (
+        <span className="inline-flex items-center gap-1 align-bottom">
+          <span className="line-through decoration-2 text-muted-foreground">
+            {children}
+          </span>
+          <InactiveIcon />
+        </span>
+      );
+    }
     return children;
   }
 
@@ -118,7 +141,16 @@ export function UserHoverLink({
         onMouseLeave={() => setTooltipState(null)}
         onBlur={() => setTooltipState(null)}
       >
-        <span>{children}</span>
+        <span
+          className={
+            isInactive(user)
+              ? "line-through decoration-2 text-muted-foreground"
+              : undefined
+          }
+        >
+          {children}
+        </span>
+        {isInactive(user) && <InactiveIcon />}
         {user.type && (
           <UserRoleBadge
             type={user.type}
@@ -155,7 +187,16 @@ export function UserHoverLink({
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="text-sm font-semibold truncate flex items-center gap-1.5">
-                  {tooltipName}
+                  <span
+                    className={
+                      isInactive(user)
+                        ? "line-through decoration-2 text-muted-foreground"
+                        : undefined
+                    }
+                  >
+                    {tooltipName}
+                  </span>
+                  {isInactive(user) && <InactiveIcon />}
                   {user.type && (
                     <UserRoleBadge
                       type={user.type}
@@ -196,7 +237,16 @@ export function UserReferenceList({ users }: UserCollectionProps) {
             </UserHoverLink>
           ) : (
             <span className="font-medium">
-              {user.displayName || user.username}
+              <span
+                className={
+                  isInactive(user)
+                    ? "line-through decoration-2 text-muted-foreground"
+                    : undefined
+                }
+              >
+                {user.displayName || user.username}
+              </span>
+              {isInactive(user) && <InactiveIcon />}
             </span>
           )}
           {user.email && (
@@ -228,7 +278,18 @@ export function UserReferenceInlineList({ users }: UserCollectionProps) {
               {user.username || user.displayName}
             </UserHoverLink>
           ) : (
-            user.username || user.displayName
+            <>
+              <span
+                className={
+                  isInactive(user)
+                    ? "line-through decoration-2 text-muted-foreground"
+                    : undefined
+                }
+              >
+                {user.username || user.displayName}
+              </span>
+              {isInactive(user) && <InactiveIcon />}
+            </>
           )}
           {index < users.length - 1 ? ", " : ""}
         </span>
@@ -268,7 +329,16 @@ export function SelectableUserPicker({
               </div>
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-medium leading-none">
-                  {user.displayName || user.username}
+                  <span
+                    className={
+                      isInactive(user)
+                        ? "line-through decoration-2 text-muted-foreground"
+                        : undefined
+                    }
+                  >
+                    {user.displayName || user.username}
+                  </span>
+                  {isInactive(user) && <InactiveIcon />}
                 </span>
                 <span className="text-xs text-muted-foreground mt-1 truncate">
                   {user.email}
@@ -292,7 +362,16 @@ export function SelectableUserSummary({ users }: UserCollectionProps) {
       {users.map((user) => (
         <li key={user.id} className="text-sm text-muted-foreground">
           <span className="text-foreground font-medium">
-            {user.displayName || user.username}
+            <span
+              className={
+                isInactive(user)
+                  ? "line-through decoration-2 text-muted-foreground"
+                  : undefined
+              }
+            >
+              {user.displayName || user.username}
+            </span>
+            {isInactive(user) && <InactiveIcon />}
           </span>
           {user.email ? ` (${user.email})` : ""}
         </li>
@@ -314,7 +393,16 @@ export function OwnerUserList({ users }: UserCollectionProps) {
             className="text-primary hover:underline text-sm font-medium flex items-center space-x-2"
             href={user.profilePath}
           >
-            {user.displayName || user.username}
+            <span
+              className={
+                isInactive(user)
+                  ? "line-through decoration-2 text-muted-foreground"
+                  : undefined
+              }
+            >
+              {user.displayName || user.username}
+            </span>
+            {isInactive(user) && <InactiveIcon />}
           </a>
         </li>
       ))}

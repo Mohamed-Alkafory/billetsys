@@ -25,7 +25,11 @@ import type {
 import { Card, CardHeader } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
-import { UserRoleBadge } from "../components/users/UserComponents";
+import {
+  InactiveIcon,
+  isInactive,
+  UserRoleBadge,
+} from "../components/users/UserComponents";
 import {
   Select,
   SelectContent,
@@ -190,19 +194,34 @@ export default function DirectoryUsersPage({
                           className="text-[var(--color-header-bg)] hover:underline hover:opacity-80"
                           href={user.detailPath}
                         >
-                          {user.displayName ||
-                            user.fullName ||
-                            user.username ||
-                            "User"}
+                          <span
+                            className={
+                              isInactive(user)
+                                ? "line-through decoration-2 text-muted-foreground"
+                                : undefined
+                            }
+                          >
+                            {user.displayName ||
+                              user.fullName ||
+                              user.username ||
+                              "User"}
+                          </span>
                         </SmartLink>
                       ) : (
-                        <span>
+                        <span
+                          className={
+                            isInactive(user)
+                              ? "line-through decoration-2 text-muted-foreground"
+                              : undefined
+                          }
+                        >
                           {user.displayName ||
                             user.fullName ||
                             user.username ||
                             "User"}
                         </span>
                       )}
+                      {isInactive(user) && <InactiveIcon />}
                       {user.type && (
                         <UserRoleBadge
                           type={user.type}

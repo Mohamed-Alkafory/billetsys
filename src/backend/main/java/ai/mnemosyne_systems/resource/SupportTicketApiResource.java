@@ -281,7 +281,7 @@ public class SupportTicketApiResource {
     private UserReference toUserReference(User user) {
         return new UserReference(user.id, user.name, user.getDisplayName(), user.fullName, user.email, user.type,
                 user.country == null ? null : user.country.name, user.timezone == null ? null : user.timezone.name,
-                user.logoBase64, userPath(user));
+                user.logoBase64, userPath(user), user.active);
     }
 
     private MessageEntry toMessageEntry(Message message, java.util.Map<Long, Ticket> ticketCache) {
@@ -438,7 +438,8 @@ public class SupportTicketApiResource {
     }
 
     public record UserReference(Long id, String username, String displayName, String fullName, String email,
-            String type, String countryName, String timezoneName, String logoBase64, String detailPath) {
+            String type, String countryName, String timezoneName, String logoBase64, String detailPath,
+            boolean active) {
     }
 
     public record MessageEntry(Long id, String body, String dateLabel, String date, UserReference author,

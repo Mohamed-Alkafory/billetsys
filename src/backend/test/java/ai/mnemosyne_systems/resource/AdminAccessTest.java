@@ -22,6 +22,8 @@ import ai.mnemosyne_systems.model.Ticket;
 import ai.mnemosyne_systems.model.Timezone;
 import ai.mnemosyne_systems.model.User;
 import ai.mnemosyne_systems.model.Version;
+import ai.mnemosyne_systems.model.event.Event;
+import ai.mnemosyne_systems.model.event.EventConstants;
 import ai.mnemosyne_systems.service.MailboxPollingService;
 import ai.mnemosyne_systems.service.TicketEmailService;
 import ai.mnemosyne_systems.util.AuthHelper;
@@ -527,6 +529,132 @@ class AdminAccessTest extends AccessTestSupport {
         Assertions.assertNull(refreshedUser(targetUserId));
         Assertions.assertFalse(companyHasUser(companyId, "delete-target-2@mnemosyne-systems.ai"));
         Assertions.assertTrue(deleteReferencesCleared("delete-target-2@mnemosyne-systems.ai"));
+    }
+
+    @Test
+    void adminCanToggleUserActiveStatus() {
+        ensureUser("admin", "admin@mnemosyne-systems.ai", User.TYPE_ADMIN, "admin");
+        ensureUser("toggle-target", "toggle-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        setUserActive("toggle-target@mnemosyne-systems.ai", true);
+        String cookie = login("admin", "admin");
+        User target = User.find("email", "toggle-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/admin/users/" + target.id + "/active").then().statusCode(303);
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).get("/api/admin/users/" + target.id).then()
+                .statusCode(200).body("active", Matchers.equalTo(false));
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "true")
+                .post("/api/admin/users/" + target.id + "/active").then().statusCode(303);
+        RestAssured.given().cookie(AuthHelper.AUTH_COOKIE, cookie).get("/api/admin/users/" + target.id).then()
+                .statusCode(200).body("active", Matchers.equalTo(true));
+    }
+
+    @Test
+    void adminToggleLogsDedicatedActivationEvents() {
+        ensureUser("admin", "admin@mnemosyne-systems.ai", User.TYPE_ADMIN, "admin");
+        ensureUser("event-toggle-target", "event-toggle-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        setUserActive("event-toggle-target@mnemosyne-systems.ai", true);
+        String cookie = login("admin", "admin");
+        User target = User.find("email", "event-toggle-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/admin/users/" + target.id + "/active").then().statusCode(303);
+
+        Assertions.assertEquals(1,
+                Event.count("key = ?1 and eventType = ?2", target.id, EventConstants.USER_DEACTIVATED));
+        Assertions.assertEquals(0, Event.count("key = ?1 and eventType = ?2", target.id, EventConstants.USER_DELETED));
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "true")
+                .post("/api/admin/users/" + target.id + "/active").then().statusCode(303);
+
+        Assertions.assertEquals(1,
+                Event.count("key = ?1 and eventType = ?2", target.id, EventConstants.USER_ACTIVATED));
+        Assertions.assertEquals(0, Event.count("key = ?1 and eventType = ?2", target.id, EventConstants.USER_CREATED));
+    }
+
+    @Test
+    void adminCannotToggleOwnActiveStatus() {
+        ensureUser("admin", "admin@mnemosyne-systems.ai", User.TYPE_ADMIN, "admin");
+        String cookie = login("admin", "admin");
+        User admin = User.find("email", "admin@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(admin);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/admin/users/" + admin.id + "/active").then().statusCode(400);
+        Assertions.assertTrue(refreshedUser(admin.id).active);
+    }
+
+    @Test
+    void adminToggleRequiresActiveParam() {
+        ensureUser("admin", "admin@mnemosyne-systems.ai", User.TYPE_ADMIN, "admin");
+        ensureUser("toggle-param-target", "toggle-param-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        setUserActive("toggle-param-target@mnemosyne-systems.ai", true);
+        String cookie = login("admin", "admin");
+        User target = User.find("email", "toggle-param-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).post("/api/admin/users/" + target.id + "/active").then()
+                .statusCode(400);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    void adminCanToggleAnyUserType() {
+        ensureUser("admin", "admin@mnemosyne-systems.ai", User.TYPE_ADMIN, "admin");
+        ensureUser("toggle-support", "toggle-support@mnemosyne-systems.ai", User.TYPE_SUPPORT, "password");
+        setUserActive("toggle-support@mnemosyne-systems.ai", true);
+        String cookie = login("admin", "admin");
+        User target = User.find("email", "toggle-support@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "false")
+                .post("/api/admin/users/" + target.id + "/active").then().statusCode(303);
+        Assertions.assertFalse(refreshedUser(target.id).active);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("active", "true")
+                .post("/api/admin/users/" + target.id + "/active").then().statusCode(303);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+    }
+
+    @Test
+    void adminCanUpdateActiveStatusViaUserForm() {
+        ensureUser("admin", "admin@mnemosyne-systems.ai", User.TYPE_ADMIN, "admin");
+        ensureUser("form-toggle-target", "form-toggle-target@mnemosyne-systems.ai", User.TYPE_USER, "password");
+        setUserActive("form-toggle-target@mnemosyne-systems.ai", true);
+        String cookie = login("admin", "admin");
+        User target = User.find("email", "form-toggle-target@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(target);
+        User admin = User.find("email", "admin@mnemosyne-systems.ai").firstResult();
+        Assertions.assertNotNull(admin);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("name", "form-toggle-target")
+                .formParam("email", "form-toggle-target@mnemosyne-systems.ai").formParam("type", User.TYPE_USER)
+                .formParam("active", "false").post("/user/" + target.id).then().statusCode(303);
+        Assertions.assertFalse(refreshedUser(target.id).active);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("name", "form-toggle-target")
+                .formParam("email", "form-toggle-target@mnemosyne-systems.ai").formParam("type", User.TYPE_USER)
+                .formParam("active", "true").post("/user/" + target.id).then().statusCode(303);
+        Assertions.assertTrue(refreshedUser(target.id).active);
+
+        RestAssured.given().redirects().follow(false).cookie(AuthHelper.AUTH_COOKIE, cookie)
+                .contentType(ContentType.URLENC).formParam("name", "admin")
+                .formParam("email", "admin@mnemosyne-systems.ai").formParam("type", User.TYPE_ADMIN)
+                .formParam("active", "false").post("/user/" + admin.id).then().statusCode(400);
+        Assertions.assertTrue(refreshedUser(admin.id).active);
     }
 
     @Transactional

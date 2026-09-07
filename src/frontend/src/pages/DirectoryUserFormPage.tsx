@@ -17,6 +17,7 @@ import useJson from "../hooks/useJson";
 import useSubmissionGuard from "../hooks/useSubmissionGuard";
 import useNumberShortcuts from "../hooks/useNumberShortcuts";
 import { postForm } from "../utils/api";
+import type { FormEntryValue } from "../utils/api";
 import { createDirectoryUserFormState } from "../utils/forms";
 import { toQueryString } from "../utils/formatting";
 import { resolveClientPath, resolvePostRedirectPath } from "../utils/routing";
@@ -29,6 +30,7 @@ import type {
 } from "../types/domain";
 import type { DirectoryUserFormState } from "../utils/forms";
 import { Button } from "../components/ui/button";
+import { Switch } from "../components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,6 +81,10 @@ export default function DirectoryUserFormPage({
   const allowUnassignedCompany = bootstrapBase === "/api/admin/users/bootstrap";
   const isAdminCreate =
     !isEdit && bootstrapBase === "/api/admin/users/bootstrap";
+  const showActiveField =
+    isEdit &&
+    (bootstrapBase === "/api/admin/users/bootstrap" ||
+      bootstrapBase.endsWith("/externals/bootstrap"));
   const [formState, setFormState] = useState<DirectoryUserFormState | null>(
     null,
   );
@@ -192,6 +198,9 @@ export default function DirectoryUserFormPage({
         ["type", formState.type],
         ["companyId", formState.companyId],
         ["password", formState.password],
+        ...(showActiveField
+          ? [["active", formState.active] as [string, FormEntryValue]]
+          : []),
       ]);
       toast.success(
         isEdit ? "User updated successfully." : "User created successfully.",
@@ -486,6 +495,28 @@ export default function DirectoryUserFormPage({
                     </SelectContent>
                   </Select>
                 </Field>
+                {showActiveField && (
+                  <Field>
+                    <FieldLabel className="text-[var(--color-header-bg)]">
+                      Active
+                    </FieldLabel>
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={formState.active}
+                        onCheckedChange={(checked) =>
+                          updateFormState("active", checked)
+                        }
+                        aria-label="Active status"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {formState.active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <FieldDescription>
+                      Inactive users cannot sign in.
+                    </FieldDescription>
+                  </Field>
+                )}
                 {formState.type === "external" && (
                   <div className="sm:col-span-2">
                     <p className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-md border border-border">

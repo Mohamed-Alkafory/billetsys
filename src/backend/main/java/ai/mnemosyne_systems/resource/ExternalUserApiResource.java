@@ -133,7 +133,7 @@ public class ExternalUserApiResource {
                 user.email, user.social, user.phoneNumber, user.phoneExtension, user.type, "External",
                 user.country == null ? null : user.country.name, user.timezone == null ? null : user.timezone.name,
                 user.logoBase64, userCompany.id, userCompany.name, null, "/" + role + "/externals/" + user.id + "/edit",
-                "/" + role + "/externals/" + user.id + "/delete", "/" + role + "/externals");
+                "/" + role + "/externals/" + user.id + "/delete", "/" + role + "/externals", user.active);
     }
 
     private User requireRole(String auth, String role) {

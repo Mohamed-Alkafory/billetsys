@@ -12,13 +12,22 @@ import ai.mnemosyne_systems.model.Company;
 import ai.mnemosyne_systems.model.Country;
 import ai.mnemosyne_systems.model.Timezone;
 import ai.mnemosyne_systems.model.User;
+import ai.mnemosyne_systems.model.event.EventConstants;
+import ai.mnemosyne_systems.service.EventService;
 import ai.mnemosyne_systems.util.AuthHelper;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.CookieParam;
+import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.NotAuthorizedException;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -28,6 +37,9 @@ import java.util.List;
 @Path("/api/tam/users")
 @Produces(MediaType.APPLICATION_JSON)
 public class TamUserApiResource {
+
+    @Inject
+    EventService eventService;
 
     @GET
     @Transactional
@@ -81,6 +93,42 @@ public class TamUserApiResource {
                 List.of(new UserDirectoryApiModels.TypeOption(User.TYPE_USER, "User"),
                         new UserDirectoryApiModels.TypeOption(User.TYPE_EXTERNAL, "External")),
                 UserDirectoryApiModels.userFormData(newUser, selectedCompany.id));
+    }
+
+    @POST
+    @Path("/{id}/active")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response setActive(@CookieParam(AuthHelper.AUTH_COOKIE) String auth, @PathParam("id") Long id,
+            @HeaderParam("X-Billetsys-Client") String client, @FormParam("active") Boolean active) {
+        User currentUser = requireTam(auth);
+        if (active == null) {
+            throw new BadRequestException("Active is required");
+        }
+        User user = User.findById(id);
+        if (user == null) {
+            throw new NotFoundException();
+        }
+        if (currentUser.id != null && currentUser.id.equals(user.id)) {
+            throw new BadRequestException("Cannot change your own active status");
+        }
+        if (!User.TYPE_USER.equalsIgnoreCase(user.type) && !User.TYPE_EXTERNAL.equalsIgnoreCase(user.type)) {
+            throw new NotFoundException();
+        }
+        boolean inScope = Company.count(
+                "select count(c) from Company c join c.users current join c.users viewed where current = ?1 and viewed = ?2",
+                currentUser, user) > 0;
+        if (!inScope) {
+            throw new NotFoundException();
+        }
+        user.active = active;
+        user.persist();
+        Company company = Company.<Company> find("select c from Company c join c.users u where u = ?1", user)
+                .firstResult();
+        eventService.record(user.id, active ? EventConstants.USER_ACTIVATED : EventConstants.USER_DEACTIVATED,
+                company == null ? null : company.id, currentUser.id, active ? "User activated" : "User deactivated");
+        String backPath = company != null ? "/tam/users?companyId=" + company.id : "/tam/users";
+        return ReactRedirectSupport.redirect(client, backPath);
     }
 
     private Company selectCompany(List<Company> companies, Long companyId) {
