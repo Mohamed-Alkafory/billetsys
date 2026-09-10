@@ -141,6 +141,8 @@ public class SuperuserResource {
         newUser.type = normalized;
         if (password != null && !password.isBlank()) {
             newUser.passwordHash = BcryptUtil.bcryptHash(password);
+        } else if (User.TYPE_EXTERNAL.equalsIgnoreCase(type)) {
+            newUser.passwordHash = User.DISABLED_PASSWORD_HASH;
         }
         newUser.persist();
         eventService.record(newUser.id, ai.mnemosyne_systems.model.event.EventConstants.USER_CREATED, company.id,

@@ -41,7 +41,7 @@ public class ExternalUserResource {
         User currentUser = requireRole(auth, role);
         Company company = resolveCompanyForRole(currentUser, role, companyId);
         if (company == null) {
-            throw new NotFoundException();
+            throw new BadRequestException("Company is required");
         }
 
         if (email == null || email.isBlank() || fullName == null || fullName.isBlank()) {

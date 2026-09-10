@@ -176,6 +176,8 @@ public class UserResource {
         newUser.type = normalized;
         if (password != null && !password.isBlank()) {
             newUser.passwordHash = BcryptUtil.bcryptHash(password);
+        } else if (User.TYPE_EXTERNAL.equalsIgnoreCase(type)) {
+            newUser.passwordHash = User.DISABLED_PASSWORD_HASH;
         }
         newUser.persist();
         eventService.record(newUser.id, ai.mnemosyne_systems.model.event.EventConstants.USER_CREATED, company.id,
@@ -507,6 +509,8 @@ public class UserResource {
                 "Type must be admin, support, user, tam, superuser, or external");
         if (password != null && !password.isBlank()) {
             newUser.passwordHash = BcryptUtil.bcryptHash(password);
+        } else if (User.TYPE_EXTERNAL.equalsIgnoreCase(type)) {
+            newUser.passwordHash = User.DISABLED_PASSWORD_HASH;
         }
         newUser.persist();
         eventService.record(newUser.id, ai.mnemosyne_systems.model.event.EventConstants.USER_CREATED, null,

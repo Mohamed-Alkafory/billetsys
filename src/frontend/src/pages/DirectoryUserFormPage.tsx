@@ -67,6 +67,19 @@ interface UserTypeOption {
 
 const UNASSIGNED_COMPANY_VALUE = "__unassigned__";
 
+const EXTERNAL_SUBMIT_PATH_PATTERN =
+  /^\/(support|tam|superuser)\/users(\/.*)?$/;
+
+// Externals are managed through dedicated /{role}/externals endpoints, but the
+// role user forms share one bootstrap whose submitPath points at /{role}/users.
+// Route external creates/updates to the externals endpoint instead.
+function resolveSubmitPath(submitPath: string, type: string): string {
+  if (type === "external") {
+    return submitPath.replace(EXTERNAL_SUBMIT_PATH_PATTERN, "/$1/externals$2");
+  }
+  return submitPath;
+}
+
 export default function DirectoryUserFormPage({
   bootstrapBase,
   navigateFallback,
@@ -186,22 +199,26 @@ export default function DirectoryUserFormPage({
     }
     try {
       setSaveState({ saving: true, error: "" });
-      const response = await postForm(bootstrap.submitPath, [
-        ["name", formState.name],
-        ["fullName", formState.fullName],
-        ["email", formState.email],
-        ["social", formState.social],
-        ["phoneNumber", formState.phoneNumber],
-        ["phoneExtension", formState.phoneExtension],
-        ["countryId", formState.countryId],
-        ["timezoneId", formState.timezoneId],
-        ["type", formState.type],
-        ["companyId", formState.companyId],
-        ["password", formState.password],
-        ...(showActiveField
-          ? [["active", formState.active] as [string, FormEntryValue]]
-          : []),
-      ]);
+      const response = await postForm(
+        resolveSubmitPath(bootstrap.submitPath, formState.type),
+        [
+          ["name", formState.name],
+          ["fullName", formState.fullName],
+          ["email", formState.email],
+          ["social", formState.social],
+          ["phoneNumber", formState.phoneNumber],
+          ["phoneExtension", formState.phoneExtension],
+          ["countryId", formState.countryId],
+          ["timezoneId", formState.timezoneId],
+          ["type", formState.type],
+          ["companyId", formState.companyId],
+          ["password", formState.password],
+          ...(showActiveField
+            ? [["active", formState.active] as [string, FormEntryValue]]
+            : []),
+        ],
+      );
+
       toast.success(
         isEdit ? "User updated successfully." : "User created successfully.",
       );
@@ -229,14 +246,15 @@ export default function DirectoryUserFormPage({
   const deleteUser = async () => {
     if (
       !id ||
-      !bootstrap?.submitPath?.startsWith("/user/") ||
+      !bootstrap?.submitPath ||
+      bootstrap.submitPath === "/user/profile" ||
       !submissionGuard.tryEnter()
     ) {
       return;
     }
     try {
       setSaveState({ saving: true, error: "" });
-      const response = await postForm(`/user/${id}/delete`, []);
+      const response = await postForm(`${bootstrap.submitPath}/delete`, []);
       toast.success("User deleted.");
       navigate(
         await resolvePostRedirectPath(

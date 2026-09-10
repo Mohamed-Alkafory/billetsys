@@ -65,6 +65,9 @@ public class SupportResource {
     @Inject
     EventService eventService;
 
+    @Inject
+    ExternalUserResource externalUserResource;
+
     @GET
     public Response listTickets(@CookieParam(AuthHelper.AUTH_COOKIE) String auth) {
         requireSupport(auth);
@@ -222,6 +225,8 @@ public class SupportResource {
         newUser.type = normalized;
         if (password != null && !password.isBlank()) {
             newUser.passwordHash = BcryptUtil.bcryptHash(password);
+        } else if (User.TYPE_EXTERNAL.equalsIgnoreCase(type)) {
+            newUser.passwordHash = User.DISABLED_PASSWORD_HASH;
         }
         newUser.persist();
         eventService.record(newUser.id, ai.mnemosyne_systems.model.event.EventConstants.USER_CREATED, company.id,
@@ -232,6 +237,44 @@ public class SupportResource {
             company.users.add(newUser);
         }
         return Response.seeOther(URI.create("/support/users/" + company.id)).build();
+    }
+
+    @POST
+    @Path("/externals")
+    @Transactional
+    public Response createSupportExternalUser(@CookieParam(AuthHelper.AUTH_COOKIE) String auth,
+            @FormParam("name") String name, @FormParam("fullName") String fullName, @FormParam("email") String email,
+            @FormParam("social") String social, @FormParam("phoneNumber") String phoneNumber,
+            @FormParam("phoneExtension") String phoneExtension, @FormParam("countryId") Long countryId,
+            @FormParam("timezoneId") Long timezoneId, @FormParam("companyId") Long companyId) {
+        // ExternalUserResource's "{role}/externals" template never matches for role "support": this class's
+        // literal "/support" path wins root resource matching (literals beat templates), and since none of its
+        // methods matched "externals", requests 404'd. These literal endpoints delegate with role "support".
+        return externalUserResource.createExternalUser(auth, "support", name, fullName, email, social, phoneNumber,
+                phoneExtension, countryId, timezoneId, companyId);
+    }
+
+    @POST
+    @Path("/externals/{id}")
+    @Transactional
+    public Response updateSupportExternalUser(@CookieParam(AuthHelper.AUTH_COOKIE) String auth,
+            @PathParam("id") Long id, @FormParam("name") String name, @FormParam("fullName") String fullName,
+            @FormParam("email") String email, @FormParam("social") String social,
+            @FormParam("phoneNumber") String phoneNumber, @FormParam("phoneExtension") String phoneExtension,
+            @FormParam("countryId") Long countryId, @FormParam("timezoneId") Long timezoneId,
+            @FormParam("active") Boolean active) {
+        // See createSupportExternalUser: literal path required so support requests reach the shared implementation.
+        return externalUserResource.updateExternalUser(auth, "support", id, name, fullName, email, social, phoneNumber,
+                phoneExtension, countryId, timezoneId, active);
+    }
+
+    @POST
+    @Path("/externals/{id}/delete")
+    @Transactional
+    public Response deleteSupportExternalUser(@CookieParam(AuthHelper.AUTH_COOKIE) String auth,
+            @PathParam("id") Long id) {
+        // See createSupportExternalUser: literal path required so support requests reach the shared implementation.
+        return externalUserResource.deleteExternalUser(auth, "support", id);
     }
 
     private String trimOrNull(String value) {
