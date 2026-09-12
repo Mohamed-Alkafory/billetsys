@@ -263,6 +263,29 @@ public class PdfService {
             }
             document.add(Chunk.NEWLINE);
 
+            // Pickup Time
+            document.add(new Paragraph("Pickup Time (hours)", sectionFont));
+            document.add(Chunk.NEWLINE);
+            addChartImage(document, chartImages, "pickupTimeChart");
+            if (data.pickupTimeStats == null || data.pickupTimeStats.isEmpty()) {
+                document.add(new Paragraph("No data available", normalFont));
+            } else {
+                PdfPTable pickupTable = new PdfPTable(4);
+                pickupTable.setWidthPercentage(100);
+                pickupTable.addCell(createCell("Category", red, Color.WHITE));
+                pickupTable.addCell(createCell("Min. Hours", red, Color.WHITE));
+                pickupTable.addCell(createCell("Avg. Hours", red, Color.WHITE));
+                pickupTable.addCell(createCell("Max. Hours", red, Color.WHITE));
+                for (Map.Entry<String, PickupTimeStat> entry : data.pickupTimeStats.entrySet()) {
+                    pickupTable.addCell(new Phrase(entry.getKey(), normalFont));
+                    pickupTable.addCell(new Phrase(String.valueOf(entry.getValue().min()), normalFont));
+                    pickupTable.addCell(new Phrase(String.valueOf(entry.getValue().avg()), normalFont));
+                    pickupTable.addCell(new Phrase(String.valueOf(entry.getValue().max()), normalFont));
+                }
+                document.add(pickupTable);
+            }
+            document.add(Chunk.NEWLINE);
+
             // Resolution Histogram
             document.add(new Paragraph("Resolution Time", sectionFont));
             document.add(Chunk.NEWLINE);

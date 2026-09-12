@@ -27,6 +27,7 @@ The reporting functionality is organized around visual summaries of ticket data.
 * Ticket volume over time
 * Average first-response time
 * Average resolution time
+* Pickup time (minimum, average, maximum)
 * Resolution distribution
 
 These views help turn ticket data into operational insight.
@@ -58,7 +59,17 @@ In practical use, reports can help answer questions such as:
 * Which categories generate the most work
 * Whether ticket volume is rising or falling
 * Which companies generate the most cases
-* Whether response and resolution times are acceptable
+* Whether response, pickup, and resolution times are acceptable
+
+## Pickup time
+
+The pickup time report shows how quickly tickets are picked up after they are created. It measures the time from ticket creation (opened) to the first assignment (assigned), grouped by category.
+
+For each category the report shows the minimum, average, and maximum pickup time in hours. This makes it possible to see both the typical pickup speed and outliers within the same view.
+
+Tickets that have been created but not yet assigned are still counted. For those tickets the current time is used as the end point, so long-waiting unassigned tickets increase the reported values instead of being excluded.
+
+Like the other reports, pickup time is available to roles with oversight responsibilities (admin, TAM, and superuser), each seeing the scope that matches their responsibility.
 
 ## Export
 

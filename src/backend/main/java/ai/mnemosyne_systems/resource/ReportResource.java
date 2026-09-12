@@ -9,9 +9,12 @@
 package ai.mnemosyne_systems.resource;
 
 import ai.mnemosyne_systems.model.*;
+import ai.mnemosyne_systems.model.event.Event;
+import ai.mnemosyne_systems.model.event.EventConstants;
 import ai.mnemosyne_systems.service.PdfService;
 import ai.mnemosyne_systems.util.AuthHelper;
 import ai.mnemosyne_systems.util.CurrentUser;
+import ai.mnemosyne_systems.util.TicketTimeSupport;
 import io.smallrye.common.annotation.Blocking;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -20,6 +23,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -85,13 +89,13 @@ public class ReportResource {
             @FormParam("companyChart") String companyChart, @FormParam("timeChart") String timeChart,
             @FormParam("responseTimeChart") String responseTimeChart,
             @FormParam("resolutionTimeChart") String resolutionTimeChart,
-            @FormParam("histogramChart") String histogramChart) {
+            @FormParam("pickupTimeChart") String pickupTimeChart, @FormParam("histogramChart") String histogramChart) {
         Company selectedCompany = companyId != null ? Company.findById(companyId) : null;
         String safePeriod = period == null || period.isBlank() ? "all" : period.toLowerCase();
         ReportData data = buildReportData(selectedCompany != null ? List.of(selectedCompany) : null, safePeriod);
         String companyName = selectedCompany == null ? "All" : selectedCompany.name;
         Map<String, String> chartImages = buildChartImages(statusChart, categoryChart, companyChart, timeChart,
-                responseTimeChart, resolutionTimeChart, histogramChart);
+                responseTimeChart, resolutionTimeChart, pickupTimeChart, histogramChart);
         byte[] pdf = pdfService.generateReportPdf(data, companyName, safePeriod, selectedCompany == null, chartImages);
         String filename = "report-" + companyName.toLowerCase().replace(" ", "-") + ".pdf";
         return Response.ok(pdf).header("Content-Disposition", "attachment; filename=\"" + filename + "\"").build();
@@ -107,7 +111,7 @@ public class ReportResource {
             @FormParam("companyChart") String companyChart, @FormParam("timeChart") String timeChart,
             @FormParam("responseTimeChart") String responseTimeChart,
             @FormParam("resolutionTimeChart") String resolutionTimeChart,
-            @FormParam("histogramChart") String histogramChart) {
+            @FormParam("pickupTimeChart") String pickupTimeChart, @FormParam("histogramChart") String histogramChart) {
         User user = currentUser.get();
         List<Company> tamCompanies = Company.list(
                 "select distinct c from Company c join c.users u where u = ?1 and exists (select t from Ticket t where t.company = c) order by c.name",
@@ -121,7 +125,7 @@ public class ReportResource {
         ReportData data = buildReportData(dataFilter, safePeriod);
         String companyName = selectedCompany != null ? selectedCompany.name : "All";
         Map<String, String> chartImages = buildChartImages(statusChart, categoryChart, null, timeChart,
-                responseTimeChart, resolutionTimeChart, histogramChart);
+                responseTimeChart, resolutionTimeChart, pickupTimeChart, histogramChart);
         byte[] pdf = pdfService.generateReportPdf(data, companyName, safePeriod, false, chartImages);
         String filename = "report-" + companyName.toLowerCase().replace(" ", "-") + ".pdf";
         return Response.ok(pdf).header("Content-Disposition", "attachment; filename=\"" + filename + "\"").build();
@@ -137,7 +141,7 @@ public class ReportResource {
             @FormParam("companyChart") String companyChart, @FormParam("timeChart") String timeChart,
             @FormParam("responseTimeChart") String responseTimeChart,
             @FormParam("resolutionTimeChart") String resolutionTimeChart,
-            @FormParam("histogramChart") String histogramChart) {
+            @FormParam("pickupTimeChart") String pickupTimeChart, @FormParam("histogramChart") String histogramChart) {
         User user = currentUser.get();
         List<Company> superuserCompanies = Company.list(
                 "select distinct c from Company c join c.users u where u = ?1 and exists (select t from Ticket t where t.company = c) order by c.name",
@@ -148,7 +152,7 @@ public class ReportResource {
         ReportData data = buildReportData(dataFilter, safePeriod);
         String companyName = selectedCompany != null ? selectedCompany.name : "All";
         Map<String, String> chartImages = buildChartImages(statusChart, categoryChart, null, timeChart,
-                responseTimeChart, resolutionTimeChart, histogramChart);
+                responseTimeChart, resolutionTimeChart, pickupTimeChart, histogramChart);
         byte[] pdf = pdfService.generateReportPdf(data, companyName, safePeriod, false, chartImages);
         String filename = "report-" + companyName.toLowerCase().replace(" ", "-") + ".pdf";
         return Response.ok(pdf).header("Content-Disposition", "attachment; filename=\"" + filename + "\"").build();
@@ -190,6 +194,7 @@ public class ReportResource {
         data.ticketsOverTime = buildTicketsOverTime(messagesByTicket, period);
         data.avgFirstResponseTime = buildAvgFirstResponseTime(tickets, messagesByTicket);
         data.avgResolutionTime = buildAvgResolutionTime(tickets, messagesByTicket);
+        data.pickupTimeStats = buildPickupTimeStats(tickets);
         data.resolutionHistogram = buildResolutionHistogram(tickets, messagesByTicket);
         return data;
     }
@@ -333,6 +338,67 @@ public class ReportResource {
         return result;
     }
 
+    private Map<String, PickupTimeStat> buildPickupTimeStats(List<Ticket> tickets) {
+        Map<Long, LocalDateTime> openedByTicket = new LinkedHashMap<>();
+        Map<Long, LocalDateTime> assignedByTicket = new LinkedHashMap<>();
+        List<Long> ticketIds = new ArrayList<>();
+        for (Ticket ticket : tickets) {
+            if (ticket.id != null) {
+                ticketIds.add(ticket.id);
+            }
+        }
+        if (!ticketIds.isEmpty()) {
+            List<Event> events = Event.find("key in ?1 and eventType in ?2 order by createdAt asc", ticketIds,
+                    List.of(EventConstants.TICKET_OPENED, EventConstants.TICKET_ASSIGNED)).list();
+            for (Event event : events) {
+                if (event.key == null || event.createdAt == null || event.eventType == null) {
+                    continue;
+                }
+                if (event.eventType == EventConstants.TICKET_OPENED) {
+                    openedByTicket.putIfAbsent(event.key, event.createdAt);
+                }
+            }
+            for (Event event : events) {
+                if (event.key == null || event.createdAt == null || event.eventType == null) {
+                    continue;
+                }
+                if (event.eventType == EventConstants.TICKET_ASSIGNED && !assignedByTicket.containsKey(event.key)) {
+                    LocalDateTime opened = openedByTicket.get(event.key);
+                    if (opened != null && !event.createdAt.isBefore(opened)) {
+                        assignedByTicket.put(event.key, event.createdAt);
+                    }
+                }
+            }
+        }
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, List<Double>> hoursByCategory = new LinkedHashMap<>();
+        for (Ticket ticket : tickets) {
+            LocalDateTime opened = openedByTicket.get(ticket.id);
+            if (opened == null) {
+                continue;
+            }
+            LocalDateTime assigned = assignedByTicket.getOrDefault(ticket.id, now);
+            double hours = TicketTimeSupport.elapsedMinutes(opened, assigned) / 60.0;
+            String category = ticket.category != null && ticket.category.name != null ? ticket.category.name
+                    : "Uncategorized";
+            hoursByCategory.computeIfAbsent(category, ignored -> new ArrayList<>()).add(hours);
+        }
+        Map<String, PickupTimeStat> unsorted = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Double>> entry : hoursByCategory.entrySet()) {
+            List<Double> values = entry.getValue();
+            double min = values.stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
+            double average = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            double max = values.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+            unsorted.put(entry.getKey(), new PickupTimeStat(Math.round(min * 10.0) / 10.0,
+                    Math.round(average * 10.0) / 10.0, Math.round(max * 10.0) / 10.0));
+        }
+        Map<String, PickupTimeStat> result = new LinkedHashMap<>();
+        unsorted.entrySet().stream()
+                .sorted((left, right) -> Double.compare(right.getValue().avg(), left.getValue().avg()))
+                .forEachOrdered(entry -> result.put(entry.getKey(), entry.getValue()));
+        return result;
+    }
+
     private Map<String, List<Ticket>> buildResolutionHistogram(List<Ticket> tickets,
             Map<Long, List<Message>> messagesByTicket) {
         Map<String, List<Ticket>> histogram = new LinkedHashMap<>();
@@ -372,7 +438,8 @@ public class ReportResource {
     }
 
     private Map<String, String> buildChartImages(String statusChart, String categoryChart, String companyChart,
-            String timeChart, String responseTimeChart, String resolutionTimeChart, String histogramChart) {
+            String timeChart, String responseTimeChart, String resolutionTimeChart, String pickupTimeChart,
+            String histogramChart) {
         Map<String, String> images = new LinkedHashMap<>();
         images.put("statusChart", statusChart);
         images.put("categoryChart", categoryChart);
@@ -380,6 +447,7 @@ public class ReportResource {
         images.put("timeChart", timeChart);
         images.put("responseTimeChart", responseTimeChart);
         images.put("resolutionTimeChart", resolutionTimeChart);
+        images.put("pickupTimeChart", pickupTimeChart);
         images.put("histogramChart", histogramChart);
         return images;
     }

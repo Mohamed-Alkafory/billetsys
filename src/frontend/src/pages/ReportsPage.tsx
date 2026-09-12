@@ -34,6 +34,7 @@ import type {
   ReportChartType,
   ReportData,
   ReportHistogramBucket,
+  ReportStatPoint,
 } from "../types/reports";
 import { SUPPORT_TICKET_STATUSES } from "../types/tickets";
 import {
@@ -104,6 +105,7 @@ interface ReportChartCanvasProps {
   chartKey: string;
   type: ReportChartType;
   items?: ReportChartPoint[];
+  statItems?: ReportStatPoint[];
   scriptReady: boolean;
   scriptError: string;
   onChartReady?: (name: string, instance: ChartInstance | null) => void;
@@ -132,6 +134,7 @@ function ReportChartCanvas({
   chartKey,
   type,
   items,
+  statItems,
   scriptReady,
   scriptError,
   onChartReady,
@@ -145,15 +148,16 @@ function ReportChartCanvas({
     () => (Array.isArray(items) ? items : []),
     [items],
   );
+  const normalizedStatItems = useMemo(
+    () => (Array.isArray(statItems) ? statItems : []),
+    [statItems],
+  );
+  const isStatChart = normalizedStatItems.length > 0;
   const ChartCtor = (window as ChartWindow).Chart;
 
   useEffect(() => {
-    if (
-      !scriptReady ||
-      !canvasRef.current ||
-      normalizedItems.length === 0 ||
-      !ChartCtor
-    ) {
+    const hasData = isStatChart || normalizedItems.length > 0;
+    if (!scriptReady || !canvasRef.current || !hasData || !ChartCtor) {
       if (chartRef.current) {
         chartRef.current.destroy();
         chartRef.current = null;
@@ -166,13 +170,17 @@ function ReportChartCanvas({
       chartRef.current.destroy();
     }
 
-    const labels = normalizedItems.map((item) => item.label);
-    const values = normalizedItems.map((item) => item.value);
+    const labels = isStatChart
+      ? normalizedStatItems.map((item) => item.label)
+      : normalizedItems.map((item) => item.label);
     const options: Record<string, unknown> = {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: type === "pie", position: "bottom" },
+        legend: {
+          display: type === "pie" || isStatChart,
+          position: "bottom",
+        },
       },
     };
     if (type !== "pie") {
@@ -184,11 +192,28 @@ function ReportChartCanvas({
       };
     }
 
-    chartRef.current = new ChartCtor(canvasRef.current, {
-      type,
-      data: {
-        labels,
-        datasets: [
+    const datasets = isStatChart
+      ? [
+          {
+            label: "Min",
+            data: normalizedStatItems.map((item) => item.min),
+            backgroundColor: labels.map(() => "#4285f4"),
+            borderWidth: 0,
+          },
+          {
+            label: "Avg",
+            data: normalizedStatItems.map((item) => item.avg),
+            backgroundColor: labels.map(() => "#fbbc04"),
+            borderWidth: 0,
+          },
+          {
+            label: "Max",
+            data: normalizedStatItems.map((item) => item.max),
+            backgroundColor: labels.map(() => "#34a853"),
+            borderWidth: 0,
+          },
+        ]
+      : [
           {
             label:
               type === "line"
@@ -196,7 +221,7 @@ function ReportChartCanvas({
                 : type === "pie"
                   ? undefined
                   : "Tickets",
-            data: values,
+            data: normalizedItems.map((item) => item.value),
             backgroundColor: reportColorsForLabels(labels, colorMap),
             borderColor: type === "line" ? "#b00020" : undefined,
             borderWidth: type === "line" ? 2 : 0,
@@ -204,7 +229,13 @@ function ReportChartCanvas({
             tension: type === "line" ? 0.3 : undefined,
             pointRadius: type === "line" ? 4 : undefined,
           },
-        ],
+        ];
+
+    chartRef.current = new ChartCtor(canvasRef.current, {
+      type,
+      data: {
+        labels,
+        datasets,
       },
       options,
     });
@@ -223,7 +254,9 @@ function ReportChartCanvas({
     colorMap,
     fill,
     integerScale,
+    isStatChart,
     normalizedItems,
+    normalizedStatItems,
     onChartReady,
     scriptReady,
     type,
@@ -243,7 +276,7 @@ function ReportChartCanvas({
       </div>
     );
   }
-  if (normalizedItems.length === 0) {
+  if (normalizedItems.length === 0 && normalizedStatItems.length === 0) {
     return (
       <div className="flex h-[300px] w-full items-center justify-center text-sm text-muted-foreground italic">
         No data available
@@ -319,6 +352,7 @@ export default function ReportsPage({ sessionState }: SessionPageProps) {
       timeChart: chartInstancesRef.current.timeChart,
       responseTimeChart: chartInstancesRef.current.responseTimeChart,
       resolutionTimeChart: chartInstancesRef.current.resolutionTimeChart,
+      pickupTimeChart: chartInstancesRef.current.pickupTimeChart,
       histogramChart: chartInstancesRef.current.histogramChart,
     };
 
@@ -464,6 +498,15 @@ export default function ReportsPage({ sessionState }: SessionPageProps) {
                 title="Avg. First Response Time (hours)"
                 type="bar"
                 items={reports.firstResponse}
+                scriptReady={chartScriptState.loaded}
+                scriptError={chartScriptState.error}
+                onChartReady={onChartReady}
+              />
+              <ReportChartCard
+                chartKey="pickupTimeChart"
+                title="Pickup Time (hours)"
+                type="bar"
+                statItems={reports.pickupTime}
                 scriptReady={chartScriptState.loaded}
                 scriptError={chartScriptState.error}
                 onChartReady={onChartReady}
