@@ -100,17 +100,12 @@ public class ReportApiResource {
                 selectedCompany == null ? "All" : selectedCompany.name, showCompanyFilter, showCompanyChart, exportPath,
                 period, data.totalTickets, toPoints(data.ticketsByStatus), toPoints(data.ticketsByCategory),
                 toPoints(data.ticketsByCompany), toPoints(data.ticketsOverTime),
-                toTimeStatPoints(data.firstResponseTimeStats), toDoublePoints(data.avgResolutionTime),
+                toTimeStatPoints(data.firstResponseTimeStats), toTimeStatPoints(data.resolutionTimeStats),
                 toStatPoints(data.pickupTimeStats), toHistogram(data.resolutionHistogram));
     }
 
     private List<MetricPoint> toPoints(Map<String, Long> values) {
         return values.entrySet().stream().map(entry -> new MetricPoint(entry.getKey(), entry.getValue())).toList();
-    }
-
-    private List<DoubleMetricPoint> toDoublePoints(Map<String, Double> values) {
-        return values.entrySet().stream().map(entry -> new DoubleMetricPoint(entry.getKey(), entry.getValue()))
-                .toList();
     }
 
     private List<StatMetricPoint> toStatPoints(Map<String, PickupTimeStat> values) {
@@ -169,7 +164,7 @@ public class ReportApiResource {
         data.ticketsByCompany = buildTicketsByCompany(tickets);
         data.ticketsOverTime = buildTicketsOverTime(messagesByTicket, period);
         data.firstResponseTimeStats = buildFirstResponseTimeStats(tickets, messagesByTicket);
-        data.avgResolutionTime = buildAvgResolutionTime(tickets, messagesByTicket);
+        data.resolutionTimeStats = buildResolutionTimeStats(tickets, messagesByTicket);
         data.pickupTimeStats = buildPickupTimeStats(tickets);
         data.resolutionHistogram = buildResolutionHistogram(tickets, messagesByTicket);
         return data;
@@ -278,7 +273,7 @@ public class ReportApiResource {
         return result;
     }
 
-    private Map<String, Double> buildAvgResolutionTime(List<Ticket> tickets,
+    private Map<String, TimeStat> buildResolutionTimeStats(List<Ticket> tickets,
             Map<Long, List<Message>> messagesByTicket) {
         Map<String, List<Double>> hoursByCategory = new LinkedHashMap<>();
         for (Ticket ticket : tickets) {
@@ -299,13 +294,18 @@ public class ReportApiResource {
                     : "Uncategorized";
             hoursByCategory.computeIfAbsent(category, ignored -> new ArrayList<>()).add(Math.max(hours, 0));
         }
-        Map<String, Double> unsorted = new LinkedHashMap<>();
+        Map<String, TimeStat> unsorted = new LinkedHashMap<>();
         for (Map.Entry<String, List<Double>> entry : hoursByCategory.entrySet()) {
-            double average = entry.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-            unsorted.put(entry.getKey(), Math.round(average * 10.0) / 10.0);
+            List<Double> values = entry.getValue();
+            double min = values.stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
+            double average = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            double max = values.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+            unsorted.put(entry.getKey(), new TimeStat(Math.round(min * 10.0) / 10.0, Math.round(average * 10.0) / 10.0,
+                    Math.round(max * 10.0) / 10.0));
         }
-        Map<String, Double> result = new LinkedHashMap<>();
-        unsorted.entrySet().stream().sorted(Map.Entry.<String, Double> comparingByValue().reversed())
+        Map<String, TimeStat> result = new LinkedHashMap<>();
+        unsorted.entrySet().stream()
+                .sorted((left, right) -> Double.compare(right.getValue().avg(), left.getValue().avg()))
                 .forEachOrdered(entry -> result.put(entry.getKey(), entry.getValue()));
         return result;
     }
@@ -412,17 +412,14 @@ public class ReportApiResource {
     public record ReportResponse(String role, List<CompanyOption> companies, Long selectedCompanyId, String companyName,
             boolean showCompanyFilter, boolean showCompanyChart, String exportPath, String period, int totalTickets,
             List<MetricPoint> status, List<MetricPoint> category, List<MetricPoint> company, List<MetricPoint> timeline,
-            List<StatMetricPoint> firstResponse, List<DoubleMetricPoint> resolutionTime,
-            List<StatMetricPoint> pickupTime, List<HistogramBucket> histogram) {
+            List<StatMetricPoint> firstResponse, List<StatMetricPoint> resolutionTime, List<StatMetricPoint> pickupTime,
+            List<HistogramBucket> histogram) {
     }
 
     public record CompanyOption(Long id, String name) {
     }
 
     public record MetricPoint(String label, Long value) {
-    }
-
-    public record DoubleMetricPoint(String label, Double value) {
     }
 
     public record StatMetricPoint(String label, Double min, Double avg, Double max) {

@@ -193,7 +193,7 @@ public class ReportResource {
         data.ticketsByCompany = buildTicketsByCompany(tickets);
         data.ticketsOverTime = buildTicketsOverTime(messagesByTicket, period);
         data.firstResponseTimeStats = buildFirstResponseTimeStats(tickets, messagesByTicket);
-        data.avgResolutionTime = buildAvgResolutionTime(tickets, messagesByTicket);
+        data.resolutionTimeStats = buildResolutionTimeStats(tickets, messagesByTicket);
         data.pickupTimeStats = buildPickupTimeStats(tickets);
         data.resolutionHistogram = buildResolutionHistogram(tickets, messagesByTicket);
         return data;
@@ -308,7 +308,7 @@ public class ReportResource {
         return result;
     }
 
-    private Map<String, Double> buildAvgResolutionTime(List<Ticket> tickets,
+    private Map<String, TimeStat> buildResolutionTimeStats(List<Ticket> tickets,
             Map<Long, List<Message>> messagesByTicket) {
         Map<String, List<Double>> hoursByCategory = new LinkedHashMap<>();
         for (Ticket ticket : tickets) {
@@ -332,13 +332,18 @@ public class ReportResource {
                     : "Uncategorized";
             hoursByCategory.computeIfAbsent(category, k -> new ArrayList<>()).add(hours);
         }
-        Map<String, Double> unsorted = new LinkedHashMap<>();
+        Map<String, TimeStat> unsorted = new LinkedHashMap<>();
         for (Map.Entry<String, List<Double>> entry : hoursByCategory.entrySet()) {
-            double avg = entry.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-            unsorted.put(entry.getKey(), Math.round(avg * 10.0) / 10.0);
+            List<Double> values = entry.getValue();
+            double min = values.stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
+            double avg = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+            double max = values.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+            unsorted.put(entry.getKey(), new TimeStat(Math.round(min * 10.0) / 10.0, Math.round(avg * 10.0) / 10.0,
+                    Math.round(max * 10.0) / 10.0));
         }
-        Map<String, Double> result = new LinkedHashMap<>();
-        unsorted.entrySet().stream().sorted(Map.Entry.<String, Double> comparingByValue().reversed())
+        Map<String, TimeStat> result = new LinkedHashMap<>();
+        unsorted.entrySet().stream()
+                .sorted((left, right) -> Double.compare(right.getValue().avg(), left.getValue().avg()))
                 .forEachOrdered(e -> result.put(e.getKey(), e.getValue()));
         return result;
     }

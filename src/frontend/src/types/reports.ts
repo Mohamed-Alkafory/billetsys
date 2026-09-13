@@ -41,7 +41,7 @@ export interface ReportData {
   company?: ReportChartPoint[];
   timeline?: ReportChartPoint[];
   firstResponse?: ReportStatPoint[];
-  resolutionTime?: ReportChartPoint[];
+  resolutionTime?: ReportStatPoint[];
   pickupTime?: ReportStatPoint[];
   histogram?: ReportHistogramBucket[];
 }
