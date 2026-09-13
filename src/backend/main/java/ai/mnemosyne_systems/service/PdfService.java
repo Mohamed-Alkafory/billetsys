@@ -328,20 +328,24 @@ public class PdfService {
                 document.add(Chunk.NEWLINE);
             }
 
-            // Avg Resolution Time
-            document.add(new Paragraph("Avg. Resolution Time (hours)", sectionFont));
+            // Resolution Time (hours)
+            document.add(new Paragraph("Resolution Time (hours)", sectionFont));
             document.add(Chunk.NEWLINE);
             addChartImage(document, chartImages, "resolutionTimeChart");
-            if (data.avgResolutionTime.isEmpty()) {
+            if (data.resolutionTimeStats == null || data.resolutionTimeStats.isEmpty()) {
                 document.add(new Paragraph("No data available", normalFont));
             } else {
-                PdfPTable resolutionTable = new PdfPTable(2);
+                PdfPTable resolutionTable = new PdfPTable(4);
                 resolutionTable.setWidthPercentage(100);
                 resolutionTable.addCell(createCell("Category", red, Color.WHITE));
+                resolutionTable.addCell(createCell("Min. Hours", red, Color.WHITE));
                 resolutionTable.addCell(createCell("Avg. Hours", red, Color.WHITE));
-                for (Map.Entry<String, Double> entry : data.avgResolutionTime.entrySet()) {
+                resolutionTable.addCell(createCell("Max. Hours", red, Color.WHITE));
+                for (Map.Entry<String, TimeStat> entry : data.resolutionTimeStats.entrySet()) {
                     resolutionTable.addCell(new Phrase(entry.getKey(), normalFont));
-                    resolutionTable.addCell(new Phrase(String.valueOf(entry.getValue()), normalFont));
+                    resolutionTable.addCell(new Phrase(String.valueOf(entry.getValue().min()), normalFont));
+                    resolutionTable.addCell(new Phrase(String.valueOf(entry.getValue().avg()), normalFont));
+                    resolutionTable.addCell(new Phrase(String.valueOf(entry.getValue().max()), normalFont));
                 }
                 document.add(resolutionTable);
             }

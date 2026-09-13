@@ -26,9 +26,9 @@ The reporting functionality is organized around visual summaries of ticket data.
 * Tickets by company
 * Ticket volume over time
 * First-response time (minimum, average, maximum)
-* Average resolution time
+* Resolution time (minimum, average, maximum)
 * Pickup time (minimum, average, maximum)
-* Resolution distribution
+* Resolution distribution (histogram by duration)
 
 These views help turn ticket data into operational insight.
 
@@ -80,6 +80,16 @@ For each category the report shows the minimum, average, and maximum first respo
 Tickets that have not received a support reply yet are excluded entirely. Only tickets with an actual first response contribute to the reported values.
 
 Like the other reports, first response time is available to roles with oversight responsibilities (admin, TAM, and superuser), each seeing the scope that matches their responsibility.
+
+## Resolution time
+
+The resolution time report shows how long tickets take to be resolved. It measures the time from the first message to the last message, grouped by category.
+
+For each category the report shows the minimum, average, and maximum resolution time in hours. This makes it possible to see both the typical resolution speed and outliers within the same view.
+
+Only tickets with status Closed are included. Tickets with other statuses are not counted yet because they have not been resolved.
+
+Like the other reports, resolution time is available to roles with oversight responsibilities (admin, TAM, and superuser), each seeing the scope that matches their responsibility.
 
 ## Export
 

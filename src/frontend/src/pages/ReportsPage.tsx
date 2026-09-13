@@ -513,9 +513,9 @@ export default function ReportsPage({ sessionState }: SessionPageProps) {
               />
               <ReportChartCard
                 chartKey="resolutionTimeChart"
-                title="Avg. Resolution Time (hours)"
+                title="Resolution Time (hours)"
                 type="bar"
-                items={reports.resolutionTime}
+                statItems={reports.resolutionTime}
                 scriptReady={chartScriptState.loaded}
                 scriptError={chartScriptState.error}
                 onChartReady={onChartReady}
