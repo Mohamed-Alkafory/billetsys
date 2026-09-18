@@ -17,7 +17,7 @@ import DataState from "../components/common/DataState";
 import PageHeader from "../components/layout/PageHeader";
 import { resolvePostRedirectPath } from "../utils/routing";
 import { postForm } from "../utils/api";
-import { isNetworkRequestError, submitBrowserForm } from "../utils/forms";
+import { isNetworkRequestError } from "../utils/forms";
 import { SelectableUserPicker } from "../components/users/UserComponents";
 import type { FormMode, SessionPageProps } from "../types/app";
 import type { CompanyFormBootstrap } from "../types/domain";
@@ -272,9 +272,13 @@ export default function CompanyFormPage({ mode }: CompanyFormPageProps) {
       navigate(await resolvePostRedirectPath(response, "/companies"));
     } catch (error: unknown) {
       if (isNetworkRequestError(error)) {
-        setSaveState({ saving: false, error: "" });
-        submissionGuard.exit();
-        submitBrowserForm(isEdit ? `/companies/${id}` : "/companies", entries);
+        setSaveState({
+          saving: false,
+          error: "Network error. Please check your connection and try again.",
+        });
+        toast.error(
+          "Network error. Please check your connection and try again.",
+        );
         return;
       }
       setSaveState({

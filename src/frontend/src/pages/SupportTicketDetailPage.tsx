@@ -404,6 +404,8 @@ export default function SupportTicketDetailPage({
   const messagesHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const [scrollToMessages, setScrollToMessages] = useState(false);
   const [messageSortDir, setMessageSortDir] = useState<"asc" | "desc">("desc");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const appliedSessionDefault = useRef(false);
 
   useEffect(() => {
@@ -429,6 +431,46 @@ export default function SupportTicketDetailPage({
     sessionState.data?.role === "superuser";
 
   useNumberShortcuts({ enableFieldJumps: true });
+
+  function filenameFromDisposition(header: string | null): string | null {
+    const match = header?.match(/filename="([^"]+)"/);
+    return match ? match[1] : null;
+  }
+
+  // Download the ticket PDF via fetch (not a plain <a href>): only fetch
+  // requests go through AuthProvider's patched fetch, which attaches the
+  // Bearer token the /tickets/export/* endpoints require.
+  const downloadExport = async () => {
+    if (!ticket?.exportPath || exporting) {
+      return;
+    }
+    setExporting(true);
+    setExportError("");
+    try {
+      const url = `${ticket.exportPath}${ticket.exportPath.includes("?") ? "&" : "?"}dir=${messageSortDir}`;
+      const response = await fetch(url, { credentials: "same-origin" });
+      if (!response.ok) {
+        throw new Error(`Export failed with status ${response.status}`);
+      }
+      const blob = await response.blob();
+      const filename =
+        filenameFromDisposition(response.headers.get("Content-Disposition")) ||
+        `${ticket.name || "ticket"}.pdf`;
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+    } catch {
+      setExportError("Export failed. Please try again.");
+      toast.error("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const ticketHeading = ticket?.name || ticket?.title || titleFallback;
   const showSummaryField =
@@ -1336,12 +1378,13 @@ export default function SupportTicketDetailPage({
                   <div className="mt-8 flex items-center justify-between pt-6">
                     <div>
                       {ticket.exportPath && (
-                        <Button variant="outline" asChild>
-                          <a
-                            href={`${ticket.exportPath}${ticket.exportPath?.includes("?") ? "&" : "?"}dir=${messageSortDir}`}
-                          >
-                            Export
-                          </a>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={downloadExport}
+                          disabled={exporting}
+                        >
+                          {exporting ? "Exporting…" : "Export"}
                         </Button>
                       )}
                     </div>
@@ -1354,15 +1397,21 @@ export default function SupportTicketDetailPage({
             ) : (
               ticket.exportPath && (
                 <div className="flex justify-end pt-4 mt-2">
-                  <Button variant="outline" asChild>
-                    <a
-                      href={`${ticket.exportPath}${ticket.exportPath?.includes("?") ? "&" : "?"}dir=${messageSortDir}`}
-                    >
-                      Export History
-                    </a>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={downloadExport}
+                    disabled={exporting}
+                  >
+                    {exporting ? "Exporting…" : "Export History"}
                   </Button>
                 </div>
               )
+            )}
+            {exportError && (
+              <p className="text-sm font-medium text-destructive text-right pt-2">
+                {exportError}
+              </p>
             )}
           </div>
         )}

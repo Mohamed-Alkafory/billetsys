@@ -141,6 +141,10 @@ function appendSearchValue(
   searchParams.append(key, String(value));
 }
 
+// All requests go through AuthProvider's patched window.fetch, which
+// attaches the Keycloak Bearer token to same-origin requests under
+// conservative rules (skip cross-origin, never overwrite an explicit
+// Authorization header, omit when no token).
 async function performRequest(
   url: string,
   init: RequestInit,
