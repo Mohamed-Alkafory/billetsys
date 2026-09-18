@@ -22,6 +22,17 @@ const getInitPromise = () => {
   return initPromise;
 };
 
+function isSameOrigin(url: string): boolean {
+  if (!url) {
+    return false;
+  }
+  try {
+    return new URL(url, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -95,26 +106,44 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           ? input
           : input instanceof Request
             ? input.url
-            : "";
+            : input instanceof URL
+              ? input.href
+              : "";
 
-      // Only attach Authorization header to local API endpoints (/api/*)
-      const isLocalApi =
-        url.startsWith("/api/") ||
-        url.includes(window.location.origin + "/api/");
+      // Attach the Bearer token to every same-origin request, not just
+      // /api/*. The HTML form endpoints (/users, /tickets, /user/tickets,
+      // …), report exports (/reports/*), and alarm/RSS routes also require
+      // JWT auth since the backend no longer reads session cookies. Dev
+      // runs through Quarkus Quinoa on :8080 (reverse-proxying to Vite),
+      // so all frontend requests are same-origin relative paths.
+      // Conservative rules: skip cross-origin requests, never overwrite an
+      // explicit Authorization header, and omit the header when no token
+      // is available.
+      if (isSameOrigin(url)) {
+        // Merge headers from a Request object with init headers (init
+        // wins) so an explicit Authorization header is never overwritten.
+        const headers = new Headers(
+          input instanceof Request ? input.headers : undefined,
+        );
+        new Headers(requestInit.headers).forEach((value, key) => {
+          headers.set(key, value);
+        });
 
-      if (isLocalApi && keycloak.token) {
-        try {
-          await keycloak.updateToken(30);
-        } catch (err) {
-          console.error("Token refresh failed during fetch intercept", err);
+        if (!headers.has("Authorization") && keycloak.token) {
+          try {
+            await keycloak.updateToken(30);
+          } catch (err) {
+            console.error("Token refresh failed during fetch intercept", err);
+          }
+
+          if (keycloak.token) {
+            headers.set("Authorization", `Bearer ${keycloak.token}`);
+            requestInit = {
+              ...requestInit,
+              headers,
+            };
+          }
         }
-
-        const headers = new Headers(requestInit.headers);
-        headers.set("Authorization", `Bearer ${keycloak.token}`);
-        requestInit = {
-          ...requestInit,
-          headers,
-        };
       }
 
       return originalFetch(input, requestInit);

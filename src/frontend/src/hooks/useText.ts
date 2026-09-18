@@ -33,6 +33,8 @@ export default function useText(url: string): TextState {
 
     let active = true;
 
+    // Auth comes from AuthProvider's patched window.fetch, which attaches
+    // the Bearer token to same-origin requests.
     fetch(url, { credentials: "same-origin", cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {

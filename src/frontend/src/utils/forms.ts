@@ -63,19 +63,6 @@ export function appendBrowserFormValue(
   form.appendChild(input);
 }
 
-export function submitBrowserForm(
-  url: string,
-  entries: BrowserFormEntries,
-): void {
-  const form = document.createElement("form");
-  form.method = "post";
-  form.action = url;
-  form.style.display = "none";
-  entries.forEach(([key, value]) => appendBrowserFormValue(form, key, value));
-  document.body.appendChild(form);
-  form.submit();
-}
-
 export function isNetworkRequestError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : "";
   return (

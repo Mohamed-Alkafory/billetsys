@@ -101,6 +101,11 @@ interface ChartWindow extends Window {
   Chart?: ChartConstructor;
 }
 
+function filenameFromDisposition(header: string | null): string | null {
+  const match = header?.match(/filename="([^"]+)"/);
+  return match ? match[1] : null;
+}
+
 interface ReportChartCanvasProps {
   chartKey: string;
   type: ReportChartType;
@@ -316,6 +321,8 @@ export default function ReportsPage({ sessionState }: SessionPageProps) {
   const role = session?.role;
   const supportsReports = ["admin", "tam", "superuser"].includes(role || "");
   const [filters, setFilters] = useState({ companyId: "", period: "all" });
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const chartScriptState = useExternalScript(
     "/webjars/chart.js/4.5.1/dist/chart.umd.js",
   );
@@ -337,36 +344,61 @@ export default function ReportsPage({ sessionState }: SessionPageProps) {
     delete chartInstancesRef.current[name];
   };
 
-  const exportReport = () => {
-    if (!reports?.exportPath) {
+  // Download the PDF via fetch (not a form submit): only fetch requests go
+  // through AuthProvider's patched fetch, which attaches the Bearer token
+  // the export endpoints require. Used for all roles; the
+  // backend-provided exportPath already encodes the role-specific route.
+  const exportReport = async () => {
+    if (!reports?.exportPath || exporting) {
       return;
     }
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = `${reports.exportPath}${toQueryString({ companyId: filters.companyId || undefined, period: filters.period || undefined })}`;
-
-    const imageFields = {
-      statusChart: chartInstancesRef.current.statusChart,
-      categoryChart: chartInstancesRef.current.categoryChart,
-      companyChart: chartInstancesRef.current.companyChart,
-      timeChart: chartInstancesRef.current.timeChart,
-      responseTimeChart: chartInstancesRef.current.responseTimeChart,
-      resolutionTimeChart: chartInstancesRef.current.resolutionTimeChart,
-      pickupTimeChart: chartInstancesRef.current.pickupTimeChart,
-      histogramChart: chartInstancesRef.current.histogramChart,
-    };
-
-    Object.entries(imageFields).forEach(([name, chart]) => {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = name;
-      input.value = chart ? chart.toBase64Image() : "";
-      form.appendChild(input);
-    });
-
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
+    setExporting(true);
+    setExportError("");
+    try {
+      const imageFields = {
+        statusChart: chartInstancesRef.current.statusChart,
+        categoryChart: chartInstancesRef.current.categoryChart,
+        companyChart: chartInstancesRef.current.companyChart,
+        timeChart: chartInstancesRef.current.timeChart,
+        responseTimeChart: chartInstancesRef.current.responseTimeChart,
+        resolutionTimeChart: chartInstancesRef.current.resolutionTimeChart,
+        pickupTimeChart: chartInstancesRef.current.pickupTimeChart,
+        histogramChart: chartInstancesRef.current.histogramChart,
+      };
+      const body = new URLSearchParams();
+      Object.entries(imageFields).forEach(([name, chart]) => {
+        body.set(name, chart ? chart.toBase64Image() : "");
+      });
+      const response = await fetch(
+        `${reports.exportPath}${toQueryString({ companyId: filters.companyId || undefined, period: filters.period || undefined })}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body,
+        },
+      );
+      if (!response.ok) {
+        throw new Error(`Export failed with status ${response.status}`);
+      }
+      const blob = await response.blob();
+      const filename =
+        filenameFromDisposition(response.headers.get("Content-Disposition")) ||
+        "report.pdf";
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+    } catch {
+      setExportError("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (!supportsReports) {
@@ -593,12 +625,15 @@ export default function ReportsPage({ sessionState }: SessionPageProps) {
             </Card>
 
             <div className="flex items-center justify-end space-x-3 pt-4">
+              {exportError && (
+                <p className="text-destructive text-sm">{exportError}</p>
+              )}
               <Button
                 variant="outline"
                 onClick={exportReport}
-                disabled={!chartScriptState.loaded}
+                disabled={!chartScriptState.loaded || exporting}
               >
-                Export
+                {exporting ? "Exporting…" : "Export"}
               </Button>
             </div>
           </div>

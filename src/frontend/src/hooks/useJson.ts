@@ -50,6 +50,8 @@ export default function useJson<T>(url: string | null): AsyncState<T> {
 
     let active = true;
 
+    // Auth comes from AuthProvider's patched window.fetch, which attaches
+    // the Bearer token to same-origin requests.
     fetch(url, { credentials: "same-origin", cache: "no-store" })
       .then(async (response) => {
         if (response.status === 401) {
