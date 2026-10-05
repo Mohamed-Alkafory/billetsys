@@ -6,7 +6,7 @@
 # OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
 #
 
-.PHONY: all format clean run test docs db-drop db-create full frontend platform setup
+.PHONY: all format clean run test native docs db-drop db-create full frontend platform setup
 
 all: clean format run
 
@@ -32,6 +32,9 @@ run:
 
 test:
 	@mvn test
+
+native:
+	@mvn -Pnative -DskipTests package
 
 docs:
 	@mvn -Pmanual-docs generate-resources

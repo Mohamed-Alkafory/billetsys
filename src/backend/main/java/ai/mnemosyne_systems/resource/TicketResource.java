@@ -66,7 +66,9 @@ public class TicketResource {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MMMM d yyyy, h.mma",
             Locale.ENGLISH);
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
+
+    // Not static: a static HttpClient would be built into the native image heap, which native-image rejects
+    private final HttpClient httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(10)).build();
 
     @Inject
@@ -355,7 +357,7 @@ public class TicketResource {
         HttpRequest request = HttpRequest.newBuilder(previewUri).timeout(Duration.ofSeconds(15))
                 .header("User-Agent", "billetsys-preview").GET().build();
         try {
-            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
                 return previewErrorHtml(previewUri, "Unable to load page (" + response.statusCode() + ").");
             }
