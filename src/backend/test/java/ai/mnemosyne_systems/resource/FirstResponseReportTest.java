@@ -126,6 +126,24 @@ class FirstResponseReportTest extends AccessTestSupport {
     @TestSecurity(user = "firstresponseadmin@mnemosyne-systems.ai", roles = "admin")
     @JwtSecurity(claims = { @Claim(key = "email", value = "firstresponseadmin@mnemosyne-systems.ai"),
             @Claim(key = "sub", value = "firstresponseadmin") })
+    void firstResponseCountsSameInstantReplyAsZeroHours() {
+        Long companyId = firstResponseCompanyId("First Response Same Instant Co");
+        Long ticketId = seedFirstResponseTicket("First Response Same Instant Co", "First Response Same Instant Cat");
+        LocalDateTime at = LocalDateTime.now().minusHours(3);
+        seedFirstResponseMessages(ticketId, "SameInstant", at, at);
+
+        List<Map<String, Object>> points = firstResponsePoints(companyId);
+
+        Assertions.assertEquals(1, points.size());
+        Assertions.assertEquals(0.0, firstResponseValue(points, "First Response Same Instant Cat"), 0.05);
+        Assertions.assertEquals(0.0, firstResponseMin(points, "First Response Same Instant Cat"), 0.05);
+        Assertions.assertEquals(0.0, firstResponseMax(points, "First Response Same Instant Cat"), 0.05);
+    }
+
+    @Test
+    @TestSecurity(user = "firstresponseadmin@mnemosyne-systems.ai", roles = "admin")
+    @JwtSecurity(claims = { @Claim(key = "email", value = "firstresponseadmin@mnemosyne-systems.ai"),
+            @Claim(key = "sub", value = "firstresponseadmin") })
     void firstResponseReportsMinAvgMax() {
         Long companyId = firstResponseCompanyId("First Response Stats Co");
         LocalDateTime firstAt = LocalDateTime.now().minusHours(10);
