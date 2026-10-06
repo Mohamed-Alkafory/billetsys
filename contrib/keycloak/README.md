@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-The local Docker Compose setup uses **Keycloak server 26.7.4** (`quay.io/keycloak/keycloak:26.7.4`).
+The local Docker Compose setup uses **Keycloak server 26.8.0** (`quay.io/keycloak/keycloak:26.8.0`).
 The frontend uses **keycloak-js 26.2.4**.
 
 ## Authentication Modes
